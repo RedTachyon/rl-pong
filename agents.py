@@ -1,10 +1,12 @@
+import numpy as np
+
 import torch
 from torch import nn, Tensor
 from torch.distributions import Distribution, Categorical
 
 from models import BaseModel, MLPModel, LSTMModel
 
-from typing import Tuple
+from typing import Tuple, Union
 
 from envs import foraging_env_creator
 
@@ -31,14 +33,30 @@ class Agent:
 
         return actions, logprobs, states
 
-    def compute_single_action(self, obs: Tensor,
+    def compute_single_action(self, obs: Union[Tensor, np.ndarray],
                               state: Tuple = (),
                               deterministic: bool = False) -> Tuple[int, float, Tuple]:
+        """
+        Evaluates the policy on a single observation with the given hidden state. Breaks gradients.
+
+        Args:
+            obs:
+            state:
+            deterministic:
+
+        Returns:
+
+        """
+        if not isinstance(obs, Tensor):  # maybe remove the check?
+            obs = torch.tensor(obs)
+
         action, logprob, new_state = self.compute_actions(obs, state, deterministic)
 
         return action.item(), logprob.item(), new_state
 
-    def evaluate_actions(self, obs_batch: Tensor, action_batch: Tensor, state_batch: Tuple):
+    def evaluate_actions(self, obs_batch: Tensor,
+                         action_batch: Tensor,
+                         state_batch: Tuple) -> Tuple[Tensor, Tensor, Tensor]:
 
         action_distribution: Categorical
         values: Tensor
