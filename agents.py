@@ -20,7 +20,17 @@ class Agent:
     def compute_actions(self, obs_batch: Tensor,
                         state_batch: Tuple = (),
                         deterministic: bool = False) -> Tuple[Tensor, Tensor, Tuple]:
+        """
+        Computes the action for a batch of observations with given hidden states. Breaks gradients.
 
+        Args:
+            obs_batch: observation array in shape either (batch_size, obs_size)
+            state_batch: tuple of state tensors of shape (batch_size, lstm_nodes)
+            deterministic: boolean, whether to always take the best action
+
+        Returns:
+            action, logprob of the action, new state vectors
+        """
         action_distribution: Categorical
         states: Tuple
         action_distribution, _, states = self.model(obs_batch, state_batch)
@@ -33,22 +43,22 @@ class Agent:
 
         return actions, logprobs, states
 
-    def compute_single_action(self, obs: Union[Tensor, np.ndarray],
+    def compute_single_action(self, obs: np.ndarray,
                               state: Tuple = (),
                               deterministic: bool = False) -> Tuple[int, float, Tuple]:
         """
-        Evaluates the policy on a single observation with the given hidden state. Breaks gradients.
+        Computes the action for a single observation with the given hidden state. Breaks gradients.
 
         Args:
-            obs:
-            state:
-            deterministic:
+            obs: observation array in shape either (obs_size) or (1, obs_size)
+            state: tuple of state tensors of shape (1, lstm_nodes)
+            deterministic: boolean, whether to always take the best action
 
         Returns:
-
+            action, logprob of the action, new state vectors
         """
-        if not isinstance(obs, Tensor):  # maybe remove the check?
-            obs = torch.tensor(obs)
+        if len(obs.shape) == 1:
+            obs = torch.tensor([obs])
 
         action, logprob, new_state = self.compute_actions(obs, state, deterministic)
 
@@ -57,6 +67,16 @@ class Agent:
     def evaluate_actions(self, obs_batch: Tensor,
                          action_batch: Tensor,
                          state_batch: Tuple) -> Tuple[Tensor, Tensor, Tensor]:
+        """
+
+        Args:
+            obs_batch:
+            action_batch:
+            state_batch:
+
+        Returns:
+
+        """
 
         action_distribution: Categorical
         values: Tensor
@@ -67,6 +87,9 @@ class Agent:
         entropies = action_distribution.entropy()
 
         return action_logprobs, values, entropies
+
+    def get_initial_state(self):
+        return self.model.get_initial_state()
 
 
 if __name__ == '__main__':

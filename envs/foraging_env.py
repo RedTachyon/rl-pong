@@ -106,15 +106,15 @@ class ForagingEnv(MultiAgentEnv):
         state: StateDict = self._current_obs
         reward: RewardDict = self._agent_dict(reward)  # Shared reward
         done: DoneDict = self._agent_dict(self.game.game_over)
-        done["__all__"] = self.game.game_over
+        # done["__all__"] = self.game.game_over
         info: InfoDict = {}
 
         self.current_step += 1
 
-        if self.current_step > self.max_steps:
+        if self.current_step >= self.max_steps:
             self.game.the_plot.terminate_episode()
             done: DoneDict = self._agent_dict(True)
-            done["__all__"] = True
+            # done["__all__"] = True
 
         return state, reward, done, info
 

@@ -16,6 +16,9 @@ class BaseModel(nn.Module):
     def forward(self, x: Tensor, state: Tuple) -> Tuple[Distribution, Tensor, Tuple[Tensor, Tensor]]:
         raise NotImplementedError
 
+    def get_initial_state(self) -> Tuple:
+        raise NotImplementedError
+
     @property
     def stateful(self):
         return self._stateful
@@ -31,12 +34,12 @@ class MLPModel(BaseModel):
             "hidden_sizes": (64, 64),
             "activation": F.relu,
         }
-        config = with_default_config(config, default_config)
+        self.config = with_default_config(config, default_config)
 
-        input_size: int = config.get("input_size")
-        num_actions: int = config.get("num_actions")
-        hidden_sizes: Tuple[int] = config.get("hidden_sizes")
-        self.activation: Callable = config.get("activation")
+        input_size: int = self.config.get("input_size")
+        num_actions: int = self.config.get("num_actions")
+        hidden_sizes: Tuple[int] = self.config.get("hidden_sizes")
+        self.activation: Callable = self.config.get("activation")
 
         layer_sizes = (input_size, ) + hidden_sizes
 
@@ -61,6 +64,8 @@ class MLPModel(BaseModel):
 
         return action_distribution, value, state
 
+    def get_initial_state(self):
+        return ()
 
 class LSTMModel(BaseModel):
     def __init__(self, config: Dict):
@@ -71,20 +76,20 @@ class LSTMModel(BaseModel):
         default_config = {
             "input_size": 15,
             "num_actions": 5,
-            "pre_lstm_layers": (32, ),
+            "pre_lstm_sizes": (32, ),
             "lstm_nodes": 32,
-            "post_lstm_layers": (32, ),
+            "post_lstm_sizes": (32, ),
             "activation": F.relu
         }
-        config = with_default_config(config, default_config)
+        self.config = with_default_config(config, default_config)
 
         # Unpack the config
-        input_size: int = config.get("input_size")
-        num_actions: int = config.get("num_actions")
-        pre_lstm_sizes: Tuple[int] = config.get("pre_lstm_layers")
-        lstm_nodes: int = config.get("lstm_nodes")
-        post_lstm_sizes: Tuple[int] = config.get("post_lstm_layers")
-        self.activation: Callable = config.get("activation")
+        input_size: int = self.config.get("input_size")
+        num_actions: int = self.config.get("num_actions")
+        pre_lstm_sizes: Tuple[int] = self.config.get("pre_lstm_sizes")
+        lstm_nodes: int = self.config.get("lstm_nodes")
+        post_lstm_sizes: Tuple[int] = self.config.get("post_lstm_sizes")
+        self.activation: Callable = self.config.get("activation")
 
         pre_layers = (input_size,) + pre_lstm_sizes
         post_layers = (lstm_nodes, ) + post_lstm_sizes
@@ -127,6 +132,9 @@ class LSTMModel(BaseModel):
         action_distribution = Categorical(logits=action_logits)
 
         return action_distribution, value, (h_state, c_state)
+
+    def get_initial_state(self) -> Tuple[Tensor, Tensor]:
+        return torch.zeros(1, self.config['lstm_nodes']), torch.zeros(1, self.config['lstm_nodes'])
 
 
 if __name__ == '__main__':

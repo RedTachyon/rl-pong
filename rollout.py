@@ -1,6 +1,6 @@
 import numpy as np
 
-from typing import Dict, Callable, Union, List, Tuple
+from typing import Dict, Callable, Union, List, Tuple, Optional, Any
 
 from agents import Agent
 from envs import MultiAgentEnv
@@ -9,6 +9,10 @@ import torch
 from torch import Tensor
 
 from utils import append_dict
+
+from tqdm import trange
+
+from collections import defaultdict
 
 
 class Memory:
@@ -48,8 +52,8 @@ class Memory:
         _actions: Dict[str, List[int]] = {agent: [] for agent in self.agents}
         _rewards: Dict[str, List[float]] = {agent: [] for agent in self.agents}
         _logprobs: Dict[str, List[float]] = {agent: [] for agent in self.agents}
-        _dones = Dict[str, List[bool]] = {agent: [] for agent in self.agents}
-        _states = Dict[str, List[Tuple[Tensor, Tensor]]] = {agent: [] for agent in self.agents}
+        _dones: Dict[str, List[bool]] = {agent: [] for agent in self.agents}
+        _states: Dict[str, List[Tuple[Tensor, Tensor]]] = {agent: [] for agent in self.agents}
 
         self.data = {
             "observations": _observations,
@@ -76,29 +80,165 @@ class Memory:
         for key in self.data:
             self.data[key] = {agent: [] for agent in self.agents}
 
-    def get_optimized_data(self):
+    def apply_to_agent(self, func: Callable):
         return {
-            "observations": np.stack(self.data["observations"]),  # (batch_size, obs_size) float
-            "actions": np.array(self.data["actions"]),            # (batch_size, ) int
-            "rewards": np.array(self.data["rewards"]),            # (batch_size, ) float
-            "logprobs": np.array(self.data["logprobs"]),          # (batch_size, ) float
-            "dones": np.array(self.data["dones"]),                # (batch_size, ) bool
-            "states": 0 # TODO optimize this
+            agent: func(agent) for agent in self.agents
         }
+
+    def get_torch_data(self):
+        observations = self.apply_to_agent(lambda agent: torch.tensor(np.stack(self.data["observations"][agent])))
+        actions = self.apply_to_agent(lambda agent: torch.tensor(self.data["actions"][agent]))
+        rewards = self.apply_to_agent(lambda agent: torch.tensor(self.data["rewards"][agent]))
+        logprobs = self.apply_to_agent(lambda agent: torch.tensor(self.data["logprobs"][agent]))
+        dones = self.apply_to_agent(lambda agent: torch.tensor(self.data["dones"][agent]))
+
+        def stack_states(states_: List[Tuple[Tensor, Tensor]]):
+            transposed_states: Tuple[List[Tensor], ...] = tuple(list(i) for i in zip(*states_))
+            # ([h1, h2, ...], [c1, c2, ...]) /\
+
+            tensor_states = tuple(torch.cat(state_type) for state_type in transposed_states)
+            # (tensor(h1, h2, ...), tensor(c1, c2, ...)) /\
+
+            return tensor_states
+
+        states: Dict[str, List[Tuple[Tensor, Tensor]]] = self.data["states"]
+        states = self.apply_to_agent(lambda agent: stack_states(states[agent]))
+
+        return {
+            "observations": observations,  # (batch_size, obs_size) float
+            "actions": actions,  # (batch_size, ) int
+            "rewards": rewards,  # (batch_size, ) float
+            "logprobs": logprobs,  # (batch_size, ) float
+            "dones": dones,  # (batch_size, ) bool
+            "states": states,  # (batch_size, 2, lstm_nodes)
+        }
+
+    def __getitem__(self, item):
+        return self.data[item]
+
+    def __str__(self):
+        return self.data.__str__()
 
 
 class Evaluator:
     def __init__(self, agents: Dict[str, Agent], env: MultiAgentEnv):
         self.agents = agents
+        self.agent_ids: List[str] = list(self.agents.keys())
         self.env = env
+        self.memory = Memory(self.agent_ids)
 
-    def rollout(self, deterministic: Dict[str, bool]):
-        obs = self.env.reset()
-        obs_batch = [obs]
+    def rollout_steps(self,
+                      num_steps: Optional[int] = None,
+                      num_episodes: Optional[int] = None,
+                      deterministic: Optional[Dict[str, bool]] = None,
+                      use_tqdm: bool = False,
+                      max_steps: int = 102,
+                      reset_memory: bool = True) -> Dict[str, Dict[str, Any]]:
+        """
+        Performs a rollout of the agents in the environment, for an indicated number of steps or episodes.
 
-        done = False
-        while not done:
-            pass  # TODO: Put some thought in bookkeeping here
+        Args:
+            num_steps: number of steps to take; either this or num_episodes has to be passed (not both)
+            num_episodes: number of episodes to generate
+            deterministic: whether each agent should use the greedy policy
+            use_tqdm: whether a live progress bar should be displayed
+            max_steps: maximum number of steps that can be taken in episodic mode, recommended just above env maximum
+            reset_memory: whether to reset the memory before generating data
 
-    def get_actions(self, obs: Union[Tensor, np.ndarray]) -> Dict[str, int]:
-        pass
+        Returns: dictionary with the gathered data in the following format:
+
+        {
+            "observations":
+                {
+                    "Agent0": tensor([obs1, obs2, ...]),
+
+                    "Agent1": tensor([obs1, obs2, ...])
+                },
+            "actions":
+                {
+                    "Agent0": tensor([act1, act2, ...]),
+
+                    "Agent1": tensor([act1, act2, ...])
+                },
+            ...,
+
+            "states":
+                {
+                    "Agent0": (tensor([h1, h2, ...]), tensor([c1, c2, ...])),
+
+                    "Agent1": (tensor([h1, h2, ...]), tensor([c1, c2, ...]))
+                }
+        }
+        """
+        assert not ((num_steps is None) == (num_episodes is None)), ValueError("Exactly one of num_steps, num_episodes "
+                                                                               "should receive a value")
+
+        if deterministic is None:
+            deterministic = defaultdict(bool)
+
+        if reset_memory:
+            self.reset()
+
+        obs = env.reset()
+        state = {
+            agent_id: agents[agent_id].get_initial_state() for agent_id in self.agent_ids
+        }
+
+        episode = 0
+
+        steps = num_steps if num_steps else max_steps * num_episodes
+        iterator = trange(steps) if use_tqdm else range(steps)
+        for step in iterator:
+            action_info = {  # action, logprob, state
+                agent_id: agents[agent_id].compute_single_action(obs[agent_id],
+                                                                 state[agent_id],
+                                                                 deterministic[agent_id]) for agent_id in self.agent_ids
+            }
+
+            # Unpack the actions
+            action = {agent_id: action_info[agent_id][0] for agent_id in self.agent_ids}
+            logprob = {agent_id: action_info[agent_id][1] for agent_id in self.agent_ids}
+            next_state = {agent_id: action_info[agent_id][2] for agent_id in self.agent_ids}
+
+            # Actual step in the environment
+            next_obs, reward, done, info = env.step(action)
+
+            # Saving to memory
+            self.memory.store(obs, action, reward, logprob, done, state)
+
+            # Update the current obs and state - either reset, or keep going
+            if done['Agent0'] and done['Agent1']:  # both values should always be the same anyways
+                obs = env.reset()
+                state = {
+                    agent_id: agents[agent_id].get_initial_state() for agent_id in agent_ids
+                }
+                episode += 1
+                if episode == num_episodes:
+                    break
+            else:
+                obs = next_obs
+                state = next_state
+
+        return self.memory.get_torch_data()
+
+    def reset(self):
+        self.memory.reset()
+
+
+if __name__ == '__main__':
+    from envs import foraging_env_creator
+    from models import MLPModel, LSTMModel
+
+    env = foraging_env_creator({})
+
+    agent_ids = ["Agent0", "Agent1"]
+
+    agents: Dict[str, Agent] = {
+        agent_id: Agent(MLPModel({}), name=agent_id)
+        for agent_id in agent_ids
+    }
+
+    runner = Evaluator(agents, env)
+
+    data_episode = runner.rollout_steps(num_steps=1000, use_tqdm=True)
+    data_steps = runner.rollout_steps(num_episodes=5, use_tqdm=True)
