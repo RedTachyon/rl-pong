@@ -1,0 +1,1 @@
+1. Make a custom data structure for the DataBatch and AgentDict

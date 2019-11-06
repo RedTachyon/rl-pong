@@ -1,4 +1,7 @@
-from typing import Dict, List, TypeVar
+from typing import Dict, List, TypeVar, Union, Tuple
+
+import torch
+from torch import Tensor
 
 T = TypeVar('T')
 
@@ -31,3 +34,18 @@ def append_dict(var: Dict[str, T], data_dict: Dict[str, List[T]]):
     """
     for key, value in var.items():
         data_dict[key].append(value)
+
+
+def discount_rewards_to_go(rewards: Tensor, dones: Tensor, gamma: float = 1.):
+
+    current_reward = 0
+    discounted_rewards = []
+    for reward, done in zip(rewards, dones):
+        if done:
+            current_reward = 0
+        current_reward = reward + gamma * current_reward
+        discounted_rewards.insert(0, current_reward)
+    return torch.tensor(discounted_rewards)
+
+
+DataBatch = Dict[str, Dict[str, Union[Tensor, Tuple, Tuple[Tensor, Tensor]]]]

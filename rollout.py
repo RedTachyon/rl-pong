@@ -1,6 +1,6 @@
 import numpy as np
 
-from typing import Dict, Callable, Union, List, Tuple, Optional, Any
+from typing import Dict, Callable, List, Tuple, Optional
 
 from agents import Agent
 from envs import MultiAgentEnv
@@ -8,12 +8,14 @@ from envs import MultiAgentEnv
 import torch
 from torch import Tensor
 
-from utils import append_dict
+from utils import append_dict, DataBatch
 
 from tqdm import trange
 
 from collections import defaultdict
 
+
+# See the Memory docstring for an example
 
 class Memory:
     """
@@ -133,17 +135,19 @@ class Evaluator:
                       deterministic: Optional[Dict[str, bool]] = None,
                       use_tqdm: bool = False,
                       max_steps: int = 102,
-                      reset_memory: bool = True) -> Dict[str, Dict[str, Any]]:
+                      reset_memory: bool = True,
+                      include_last: bool = False) -> DataBatch:
         """
         Performs a rollout of the agents in the environment, for an indicated number of steps or episodes.
 
         Args:
             num_steps: number of steps to take; either this or num_episodes has to be passed (not both)
             num_episodes: number of episodes to generate
-            deterministic: whether each agent should use the greedy policy
+            deterministic: whether each agent should use the greedy policy; False by default
             use_tqdm: whether a live progress bar should be displayed
             max_steps: maximum number of steps that can be taken in episodic mode, recommended just above env maximum
             reset_memory: whether to reset the memory before generating data
+            include_last: whether to include the last observation in episodic mode - useful for visualizations
 
         Returns: dictionary with the gathered data in the following format:
 
@@ -174,14 +178,14 @@ class Evaluator:
                                                                                "should receive a value")
 
         if deterministic is None:
-            deterministic = defaultdict(bool)
+            deterministic = {agent_id: False for agent_id in self.agent_ids}
 
         if reset_memory:
             self.reset()
 
-        obs = env.reset()
+        obs = self.env.reset()
         state = {
-            agent_id: agents[agent_id].get_initial_state() for agent_id in self.agent_ids
+            agent_id: self.agents[agent_id].get_initial_state() for agent_id in self.agent_ids
         }
 
         episode = 0
@@ -189,10 +193,13 @@ class Evaluator:
         steps = num_steps if num_steps else max_steps * num_episodes
         iterator = trange(steps) if use_tqdm else range(steps)
         for step in iterator:
+            # Compute the action for each agent
+            # with torch.no_grad():
             action_info = {  # action, logprob, state
-                agent_id: agents[agent_id].compute_single_action(obs[agent_id],
-                                                                 state[agent_id],
-                                                                 deterministic[agent_id]) for agent_id in self.agent_ids
+                agent_id: self.agents[agent_id].compute_single_action(obs[agent_id],
+                                                                      state[agent_id],
+                                                                      deterministic[agent_id])
+                for agent_id in self.agent_ids
             }
 
             # Unpack the actions
@@ -201,21 +208,23 @@ class Evaluator:
             next_state = {agent_id: action_info[agent_id][2] for agent_id in self.agent_ids}
 
             # Actual step in the environment
-            next_obs, reward, done, info = env.step(action)
+            next_obs, reward, done, info = self.env.step(action)
 
             # Saving to memory
             self.memory.store(obs, action, reward, logprob, done, state)
 
             # Update the current obs and state - either reset, or keep going
             if done['Agent0'] and done['Agent1']:  # both values should always be the same anyways
-                obs = env.reset()
+                if include_last:  # record the last observation along with placeholder action/reward/logprob
+                    self.memory.store(next_obs, action, reward, logprob, done, next_state)
+                obs = self.env.reset()
                 state = {
-                    agent_id: agents[agent_id].get_initial_state() for agent_id in agent_ids
+                    agent_id: self.agents[agent_id].get_initial_state() for agent_id in self.agent_ids
                 }
                 episode += 1
                 if episode == num_episodes:
                     break
-            else:
+            else:  # keep going
                 obs = next_obs
                 state = next_state
 
@@ -227,7 +236,7 @@ class Evaluator:
 
 if __name__ == '__main__':
     from envs import foraging_env_creator
-    from models import MLPModel, LSTMModel
+    from models import MLPModel
 
     env = foraging_env_creator({})
 
@@ -240,5 +249,7 @@ if __name__ == '__main__':
 
     runner = Evaluator(agents, env)
 
-    data_episode = runner.rollout_steps(num_steps=1000, use_tqdm=True)
-    data_steps = runner.rollout_steps(num_episodes=5, use_tqdm=True)
+    data_steps = runner.rollout_steps(num_steps=1000, use_tqdm=True)
+    # data_episodes = runner.rollout_steps(num_episodes=2, use_tqdm=True, include_last=True)
+    # print(data_episodes['observations']['Agent0'].shape)
+    # generate_video(data_episodes['observations']['Agent0'], 'vids/video.mp4')

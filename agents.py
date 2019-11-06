@@ -86,10 +86,13 @@ class Agent:
         action_logprobs = action_distribution.log_prob(action_batch)
         entropies = action_distribution.entropy()
 
-        return action_logprobs, values, entropies
+        return action_logprobs, values.flatten(), entropies
 
     def get_initial_state(self):
         return self.model.get_initial_state()
+
+    # def parameters(self, recurse=True):
+    #     return self.model.parameters(recurse)
 
 
 if __name__ == '__main__':
@@ -98,4 +101,4 @@ if __name__ == '__main__':
 
     env = foraging_env_creator({})
     obs_ = env.reset()
-    obs_ = {k: torch.tensor(obs_[k]) for k in obs_}
+    obs_ = {k: torch.randn(3, 15) for k in obs_}

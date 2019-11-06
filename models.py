@@ -67,6 +67,7 @@ class MLPModel(BaseModel):
     def get_initial_state(self):
         return ()
 
+
 class LSTMModel(BaseModel):
     def __init__(self, config: Dict):
         super().__init__(config)

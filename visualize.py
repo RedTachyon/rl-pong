@@ -1,12 +1,14 @@
 import pickle
 import os
 
+from torch import Tensor
+
 import numpy as np
 import matplotlib as mpl
 
 from PIL import Image
 
-from typing import Dict, List
+from typing import Dict, List, Union
 
 
 # Constants for colormap
@@ -27,7 +29,7 @@ VIDEO_DIMS = PX_PER_CELL*ROWS, PX_PER_CELL*COLS
 cmap = mpl.colors.ListedColormap(COLORS)  # Colormap for matplotlib
 
 
-def obs_to_frame(obs: Dict[str, np.ndarray],
+def obs_to_frame(obs: np.ndarray,
                  rows: int = 7,
                  cols: int = 7) -> np.ndarray:
     """
@@ -40,7 +42,7 @@ def obs_to_frame(obs: Dict[str, np.ndarray],
     """
 
     # Convert an observation to an array of color indices
-    obs: np.ndarray = obs[list(obs.keys())[0]]  # Quick trick to get the first entry of the dictionary
+    # obs: np.ndarray = obs[list(obs.keys())[0]]  # Quick trick to get the first entry of the dictionary
     agent_xy = np.round(obs[:2] * [rows, cols]).astype(int)  # first agent coords
     other_xy = np.round(obs[3:5] * [rows, cols]).astype(int)  # second agent coords
 
@@ -62,9 +64,11 @@ def obs_to_frame(obs: Dict[str, np.ndarray],
     return grid
 
 
-def generate_video(rollout: List[Dict[str, np.ndarray]],
+def generate_video(rollout: Union[np.ndarray, Tensor],
                    out_path: str = 'vids/video.mp4'):
 
+    if isinstance(rollout, Tensor):
+        rollout = rollout.numpy()
     frames = [obs_to_frame(frame) for frame in rollout]
     frames = [np.uint8(cmap(frame)*255) for frame in frames]  # rescale to 0-255 RGB
 
