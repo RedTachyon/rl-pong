@@ -87,7 +87,7 @@ class Memory:
             agent: func(agent) for agent in self.agents
         }
 
-    def get_torch_data(self):
+    def get_torch_data(self, concat_states: bool = True):
         observations = self.apply_to_agent(lambda agent: torch.tensor(np.stack(self.data["observations"][agent])))
         actions = self.apply_to_agent(lambda agent: torch.tensor(self.data["actions"][agent]))
         rewards = self.apply_to_agent(lambda agent: torch.tensor(self.data["rewards"][agent]))
@@ -95,13 +95,19 @@ class Memory:
         dones = self.apply_to_agent(lambda agent: torch.tensor(self.data["dones"][agent]))
 
         def stack_states(states_: List[Tuple[Tensor, Tensor]]):
-            transposed_states: Tuple[List[Tensor], ...] = tuple(list(i) for i in zip(*states_))
+            # transposed_states: Tuple[List[Tensor], ...] = tuple(list(i) for i in zip(*states_))
             # ([h1, h2, ...], [c1, c2, ...]) /\
 
-            tensor_states = tuple(torch.cat(state_type) for state_type in transposed_states)
-            # (tensor(h1, h2, ...), tensor(c1, c2, ...)) /\
+            if concat_states:
+                transposed_states: Tuple[List[Tensor], ...] = tuple(list(i) for i in zip(*states_))
+                # ([h1, h2, ...], [c1, c2, ...]) /\
 
-            return tensor_states
+                tensor_states = tuple(torch.cat(state_type) for state_type in transposed_states)
+                # (tensor(h1, h2, ...), tensor(c1, c2, ...)) /\
+
+                return tensor_states
+            else:
+                return states_
 
         states: Dict[str, List[Tuple[Tensor, Tensor]]] = self.data["states"]
         states = self.apply_to_agent(lambda agent: stack_states(states[agent]))
@@ -133,6 +139,7 @@ class Evaluator:
                       num_steps: Optional[int] = None,
                       num_episodes: Optional[int] = None,
                       deterministic: Optional[Dict[str, bool]] = None,
+                      break_gradients: bool = True,
                       use_tqdm: bool = False,
                       max_steps: int = 102,
                       reset_memory: bool = True,
@@ -194,7 +201,6 @@ class Evaluator:
         iterator = trange(steps) if use_tqdm else range(steps)
         for step in iterator:
             # Compute the action for each agent
-            # with torch.no_grad():
             action_info = {  # action, logprob, state
                 agent_id: self.agents[agent_id].compute_single_action(obs[agent_id],
                                                                       state[agent_id],
@@ -228,7 +234,7 @@ class Evaluator:
                 obs = next_obs
                 state = next_state
 
-        return self.memory.get_torch_data()
+        return self.memory.get_torch_data(concat_states=break_gradients)
 
     def reset(self):
         self.memory.reset()

@@ -6,7 +6,7 @@ from torch.distributions import Distribution, Categorical
 
 from models import BaseModel, MLPModel, LSTMModel
 
-from typing import Tuple, Union
+from typing import Tuple, Union, List
 
 from envs import foraging_env_creator
 
@@ -66,7 +66,7 @@ class Agent:
 
     def evaluate_actions(self, obs_batch: Tensor,
                          action_batch: Tensor,
-                         state_batch: Tuple) -> Tuple[Tensor, Tensor, Tensor]:
+                         state_batch: Union[Tuple, List]) -> Tuple[Tensor, Tensor, Tensor]:
         """
 
         Args:
@@ -78,10 +78,13 @@ class Agent:
 
         """
 
-        action_distribution: Categorical
-        values: Tensor
-        states: Tensor
-        action_distribution, values, states = self.model(obs_batch, state_batch)
+        if isinstance(state_batch, Tuple):  # (tensor({h_i}), tensor({c_i}))
+            action_distribution: Categorical
+            values: Tensor
+            states: Tensor
+            action_distribution, values, states = self.model(obs_batch, state_batch)
+        else:  # List
+            pass # TODO: evaluate each step individually and gather them back into a tensor?
 
         action_logprobs = action_distribution.log_prob(action_batch)
         entropies = action_distribution.entropy()
@@ -98,6 +101,8 @@ class Agent:
 if __name__ == '__main__':
     mlp_agent = Agent(MLPModel({}), "MLPAgent")
     lstm_agent = Agent(LSTMModel({}), "LSTMAgent")
+
+    torch.tensor([1,2]).grad
 
     env = foraging_env_creator({})
     obs_ = env.reset()

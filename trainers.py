@@ -66,7 +66,6 @@ class PPOTrainer:
             # TODO: make sure the gradients do what we want them to do in states.
             #  Maybe just keep the gradients going as they go? but try to print the graph
 
-
     @property
     def agents(self) -> Dict[str, Agent]:
         return self._agents
@@ -80,12 +79,12 @@ if __name__ == '__main__':
     env = foraging_env_creator({})
 
     agent_ids = ["Agent0", "Agent1"]
-    agents: Dict[str, Agent] = {
+    agents_: Dict[str, Agent] = {
         agent_id: Agent(LSTMModel({}), name=agent_id)
         for agent_id in agent_ids
     }
 
-    runner = Evaluator(agents, env)
+    runner = Evaluator(agents_, env)
     data_batch = runner.rollout_steps(num_episodes=10, use_tqdm=True)
     obs_batch = data_batch['observations']['Agent0']
     action_batch = data_batch['actions']['Agent0']
@@ -93,4 +92,4 @@ if __name__ == '__main__':
     reward_batch = data_batch['rewards']['Agent0']
     done_batch = data_batch['dones']['Agent0']
 
-    logprob_batch, value_batch, entropy_batch = agents['Agent0'].evaluate_actions(obs_batch, action_batch, state_batch)
+    logprob_batch, value_batch, entropy_batch = agents_['Agent0'].evaluate_actions(obs_batch, action_batch, state_batch)

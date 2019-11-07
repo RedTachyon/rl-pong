@@ -118,7 +118,10 @@ class LSTMModel(BaseModel):
             x = layer(x)
             x = self.activation(x)
 
-        (h_state, c_state) = self.lstm(x, state) if len(state) > 0 else self.lstm(x)
+        if len(state) == 0:
+            state = self.get_initial_state()
+
+        (h_state, c_state) = self.lstm(x, state)
 
         x = h_state
 
