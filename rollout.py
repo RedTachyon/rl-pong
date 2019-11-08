@@ -128,12 +128,19 @@ class Memory:
         return self.data.__str__()
 
 
+class Metrics:  # TODO: calculate metrics from each episode somehow
+    pass
+
 class Evaluator:
+    """
+    Class to perform data collection from two agents.
+    """
     def __init__(self, agents: Dict[str, Agent], env: MultiAgentEnv):
         self.agents = agents
         self.agent_ids: List[str] = list(self.agents.keys())
         self.env = env
         self.memory = Memory(self.agent_ids)
+        self.metrics = {}
 
     def rollout_steps(self,
                       num_steps: Optional[int] = None,
@@ -221,7 +228,7 @@ class Evaluator:
             self.memory.store(obs, action, reward, logprob, done, state)
 
             # Update the current obs and state - either reset, or keep going
-            if done['Agent0'] and done['Agent1']:  # both values should always be the same anyways
+            if all(done.values()):  # episode is over
                 if include_last:  # record the last observation along with placeholder action/reward/logprob
                     self.memory.store(next_obs, action, reward, logprob, done, next_state)
                 obs = self.env.reset()

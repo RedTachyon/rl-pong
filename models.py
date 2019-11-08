@@ -32,7 +32,7 @@ class MLPModel(BaseModel):
             "input_size": 15,
             "num_actions": 5,
             "hidden_sizes": (64, 64),
-            "activation": F.relu,
+            "activation": F.leaky_relu,
         }
         self.config = with_default_config(config, default_config)
 
@@ -80,7 +80,7 @@ class LSTMModel(BaseModel):
             "pre_lstm_sizes": (32, ),
             "lstm_nodes": 32,
             "post_lstm_sizes": (32, ),
-            "activation": F.relu
+            "activation": F.leaky_relu
         }
         self.config = with_default_config(config, default_config)
 

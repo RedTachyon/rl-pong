@@ -1,4 +1,4 @@
-from typing import Dict, List, TypeVar, Union, Tuple
+from typing import Dict, List, TypeVar, Union, Tuple, Any
 
 import torch
 from torch import Tensor
@@ -48,4 +48,5 @@ def discount_rewards_to_go(rewards: Tensor, dones: Tensor, gamma: float = 1.):
     return torch.tensor(discounted_rewards)
 
 
-DataBatch = Dict[str, Dict[str, Union[Tensor, Tuple, Tuple[Tensor, Tensor]]]]
+DataBatch = Dict[str, Dict[str, Any]]
+

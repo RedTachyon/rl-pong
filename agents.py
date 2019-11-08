@@ -43,7 +43,7 @@ class Agent:
 
         return actions, logprobs, states
 
-    def compute_single_action(self, obs: np.ndarray,
+    def compute_single_action(self, obs: np.ndarray,  # TODO: consider returning the entropy here as well for metrics?
                               state: Tuple = (),
                               deterministic: bool = False) -> Tuple[int, float, Tuple]:
         """
@@ -68,22 +68,29 @@ class Agent:
                          action_batch: Tensor,
                          state_batch: Union[Tuple, List]) -> Tuple[Tensor, Tensor, Tensor]:
         """
+        Computes action logprobs, observation values and policy entropy for each of the (obs, action, hidden_state)
+        transitions. Preserves all the necessary gradients.
 
         Args:
-            obs_batch:
-            action_batch:
-            state_batch:
+            obs_batch: tensor of observations, (batch_size, obs_size)
+            action_batch: tensor of actions, (batch_size, )
+            state_batch: either a tuple of tensors (tensor(h1, h2, ...), tensor(c1, c2, ...))
+                         or a list of such tuples [(tensor(h1), tensor(c1)), (tensor(h2), tensor(c2)))]
+                         Tuple version is designed to work without BPTT
+                         List version - with BPTT
 
         Returns:
-
+            action_logprobs: tensor of action logprobs (batch_size, )
+            values: tensor of observation values (batch_size, )
+            entropies: tensor of
         """
 
-        if isinstance(state_batch, Tuple):  # (tensor({h_i}), tensor({c_i}))
+        if isinstance(state_batch, Tuple):  # (tensor({h_i}), tensor({c_i})); BP
             action_distribution, values, states = self.model(obs_batch, state_batch)
             values = values.flatten()
             action_logprobs = action_distribution.log_prob(action_batch)
             entropies = action_distribution.entropy()
-        elif isinstance(state_batch, List):  # List
+        elif isinstance(state_batch, List):  # List; BPTT
             action_logprobs = []
             values = []
             entropies = []
@@ -106,15 +113,12 @@ class Agent:
     def get_initial_state(self):
         return self.model.get_initial_state()
 
-    # def parameters(self, recurse=True):
-    #     return self.model.parameters(recurse)
-
 
 if __name__ == '__main__':
     mlp_agent = Agent(MLPModel({}), "MLPAgent")
     lstm_agent = Agent(LSTMModel({}), "LSTMAgent")
 
-    torch.tensor([1,2]).grad
+    # torch.tensor([1,2]).grad
 
     env = foraging_env_creator({})
     obs_ = env.reset()

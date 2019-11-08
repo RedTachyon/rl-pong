@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Any
 
 import torch
 from torch import Tensor
@@ -18,21 +18,22 @@ class PPOTrainer:
     The set of agents should not be changed. The state_dict should be alright to be loaded?
     """
 
-    def __init__(self, agents: Dict[str, Agent], config: Dict):
-        self._agents = agents
+    def __init__(self, agents: Dict[str, Agent], config: Dict[str, Any]):
+        self.agents = agents
         self.agent_ids: List[str] = list(agents.keys())
 
         default_config = {
             "agents_to_optimize": None,
             "optimizer": optim.Adam,
             "optimizer_kwargs": {
-                "lr": 1e-4,
+                "lr": 1e-3,
                 "betas": (0.9, 0.999),
                 "eps": 1e-8,
                 "weight_decay": 0,
                 "amsgrad": False
             },
-            "gamma": 0.95
+            "gamma": 0.95,
+            "eps": 0.1
 
         }
         self.config = with_default_config(config, default_config)
@@ -40,19 +41,22 @@ class PPOTrainer:
             else self.config['agents_to_optimize']
 
         self.optimizers: Dict[str, Optimizer] = {
-            agent_id: config["optimizer"](agent.model.parameters(), **self.config["optimizer_kwargs"])
+            agent_id: self.config["optimizer"](agent.model.parameters(), **self.config["optimizer_kwargs"])
             for agent_id, agent in self.agents.items() if agent_id in self.agents_to_optimize
         }
 
-        self.gamma = self.config["gamma"]
+        self.gamma: float = self.config["gamma"]
+        self.eps: float = self.config["eps"]
 
     def train_on_data(self, data_batch: DataBatch):
         for agent_id in self.agents_to_optimize:
             agent = self.agents[agent_id]
+            optimizer = self.optimizers[agent_id]
+
             obs_batch = data_batch['observations'][agent_id]
             action_batch = data_batch['actions'][agent_id]
             reward_batch = data_batch['rewards'][agent_id]
-            # logprobs unused?
+            old_logprobs_batch = data_batch['logprobs'][agent_id]
             done_batch = data_batch['dones'][agent_id]
             state_batch = data_batch['states'][agent_id]
 
@@ -62,13 +66,23 @@ class PPOTrainer:
             advantages_batch = (discounted_batch - value_batch).detach()
 
             # Compute the loss
-            #prob_ratio = torch.
-            # TODO: make sure the gradients do what we want them to do in states.
-            #  Maybe just keep the gradients going as they go? but try to print the graph
+            # prob_ratio = torch.exp(logprob_batch - old_logprobs_batch)
+            # surr1 = prob_ratio * advantages_batch
+            # surr2 = torch.clamp(prob_ratio, 1. - self.eps, 1 + self.eps) * advantages_batch
+            #
+            # policy_loss = -torch.min(surr1, surr2).mean()
 
-    @property
-    def agents(self) -> Dict[str, Agent]:
-        return self._agents
+            # compute PG first
+
+            pg_loss = -logprob_batch * advantages_batch
+            value_loss = (value_batch - discounted_batch)**2
+
+            loss = (pg_loss + value_loss).mean()
+            optimizer.zero_grad()
+
+            loss.backward(retain_graph=True)
+            optimizer.step()
+
 
 
 if __name__ == '__main__':
