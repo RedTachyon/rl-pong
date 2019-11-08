@@ -85,7 +85,7 @@ if __name__ == '__main__':
     }
 
     runner = Evaluator(agents_, env)
-    data_batch = runner.rollout_steps(num_episodes=10, use_tqdm=True)
+    data_batch = runner.rollout_steps(num_episodes=10, break_gradients=False, use_tqdm=True)
     obs_batch = data_batch['observations']['Agent0']
     action_batch = data_batch['actions']['Agent0']
     state_batch = data_batch['states']['Agent0']

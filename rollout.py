@@ -151,6 +151,7 @@ class Evaluator:
             num_steps: number of steps to take; either this or num_episodes has to be passed (not both)
             num_episodes: number of episodes to generate
             deterministic: whether each agent should use the greedy policy; False by default
+            break_gradients: whether to break gradients between hidden states, disabling BPTT
             use_tqdm: whether a live progress bar should be displayed
             max_steps: maximum number of steps that can be taken in episodic mode, recommended just above env maximum
             reset_memory: whether to reset the memory before generating data

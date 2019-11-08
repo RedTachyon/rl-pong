@@ -138,7 +138,8 @@ class LSTMModel(BaseModel):
         return action_distribution, value, (h_state, c_state)
 
     def get_initial_state(self) -> Tuple[Tensor, Tensor]:
-        return torch.zeros(1, self.config['lstm_nodes']), torch.zeros(1, self.config['lstm_nodes'])
+        return torch.zeros(1, self.config['lstm_nodes'], requires_grad=True), \
+               torch.zeros(1, self.config['lstm_nodes'], requires_grad=True)
 
 
 if __name__ == '__main__':
