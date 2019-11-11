@@ -1,4 +1,5 @@
 import numpy as np
+import gym
 from typing import Dict, Any, Tuple
 
 StateDict = Dict[str, np.ndarray]
@@ -8,7 +9,7 @@ DoneDict = Dict[str, bool]
 InfoDict = Dict[str, Any]
 
 
-class MultiAgentEnv:
+class MultiAgentEnv(gym.Env):
     """
     Base class for a gym-like environment for multiple agents. An agent is identified with its id (string),
     and most interactions are communicated through that API (actions, states, etc)
@@ -37,3 +38,5 @@ class MultiAgentEnv:
         """
         raise NotImplementedError
 
+    def render(self, mode='human'):
+        raise NotImplementedError

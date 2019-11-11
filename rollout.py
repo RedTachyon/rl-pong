@@ -1,3 +1,4 @@
+import gym
 import numpy as np
 
 from typing import Dict, Callable, List, Tuple, Optional
@@ -131,26 +132,26 @@ class Memory:
         return self.data.__str__()
 
 
-class Evaluator:  # TODO: rename to Collector
+class Collector:
     """
     Class to perform data collection from two agents.
     """
 
-    def __init__(self, agents: Dict[str, Agent], env: MultiAgentEnv):
+    def __init__(self, agents: Dict[str, Agent], env: gym.Env):
         self.agents = agents
         self.agent_ids: List[str] = list(self.agents.keys())
         self.env = env
         self.memory = Memory(self.agent_ids)
         self.metrics = {}
 
-    def rollout_steps(self,
-                      num_steps: Optional[int] = None,
-                      num_episodes: Optional[int] = None,
-                      deterministic: Optional[Dict[str, bool]] = None,
-                      use_tqdm: bool = False,
-                      max_steps: int = 102,
-                      reset_memory: bool = True,
-                      include_last: bool = False) -> DataBatch:
+    def collect_data(self,
+                     num_steps: Optional[int] = None,
+                     num_episodes: Optional[int] = None,
+                     deterministic: Optional[Dict[str, bool]] = None,
+                     disable_tqdm: bool = True,
+                     max_steps: int = 102,
+                     reset_memory: bool = True,
+                     include_last: bool = False) -> DataBatch:
         """
         Performs a rollout of the agents in the environment, for an indicated number of steps or episodes.
 
@@ -158,7 +159,7 @@ class Evaluator:  # TODO: rename to Collector
             num_steps: number of steps to take; either this or num_episodes has to be passed (not both)
             num_episodes: number of episodes to generate
             deterministic: whether each agent should use the greedy policy; False by default
-            use_tqdm: whether a live progress bar should be displayed
+            disable_tqdm: whether a live progress bar should be (not) displayed
             max_steps: maximum number of steps that can be taken in episodic mode, recommended just above env maximum
             reset_memory: whether to reset the memory before generating data
             include_last: whether to include the last observation in episodic mode - useful for visualizations
@@ -205,8 +206,7 @@ class Evaluator:  # TODO: rename to Collector
         episode = 0
 
         steps = num_steps if num_steps else max_steps * num_episodes
-        iterator = trange(steps) if use_tqdm else range(steps)
-        for step in iterator:
+        for step in trange(steps, disable=disable_tqdm):
             # Compute the action for each agent
             action_info = {  # action, logprob, state
                 agent_id: self.agents[agent_id].compute_single_action(obs[agent_id],
@@ -247,7 +247,6 @@ class Evaluator:  # TODO: rename to Collector
         self.memory.reset()
 
 
-
 if __name__ == '__main__':
     from envs import foraging_env_creator
     from models import MLPModel, LSTMModel
@@ -261,9 +260,9 @@ if __name__ == '__main__':
         for agent_id in agent_ids
     }
 
-    runner = Evaluator(agents, env)
+    runner = Collector(agents, env)
 
-    data_steps = runner.rollout_steps(num_steps=1000, use_tqdm=True)
-    data_episodes = runner.rollout_steps(num_episodes=2, use_tqdm=True)
+    data_steps = runner.collect_data(num_steps=1000, disable_tqdm=False)
+    data_episodes = runner.collect_data(num_episodes=2, disable_tqdm=False)
     # print(data_episodes['observations']['Agent0'].shape)
     # generate_video(data_episodes['observations']['Agent0'], 'vids/video.mp4')

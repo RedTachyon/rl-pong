@@ -2,8 +2,10 @@ from typing import Dict, List, TypeVar, Union, Tuple, Any
 
 import torch
 from torch import Tensor
+import time
 
-T = TypeVar('T')
+
+DataBatch = Dict[str, Dict[str, Any]]
 
 
 def with_default_config(config: Dict, default: Dict) -> Dict:
@@ -24,6 +26,9 @@ def with_default_config(config: Dict, default: Dict) -> Dict:
     return config
 
 
+T = TypeVar('T')
+
+
 def append_dict(var: Dict[str, T], data_dict: Dict[str, List[T]]):
     """
     Works like append, but operates on dictionaries of lists and dictionaries of values (as opposed to lists and values)
@@ -37,7 +42,9 @@ def append_dict(var: Dict[str, T], data_dict: Dict[str, List[T]]):
 
 
 def discount_rewards_to_go(rewards: Tensor, dones: Tensor, gamma: float = 1.):
-
+    """
+    Computes the discounted rewards to go, handling episode endings. Nothing unusual.
+    """
     dones = dones.to(torch.int32)  # Torch can't handle reversing boolean tensors
     current_reward = 0
     discounted_rewards = []
@@ -49,5 +56,17 @@ def discount_rewards_to_go(rewards: Tensor, dones: Tensor, gamma: float = 1.):
     return torch.tensor(discounted_rewards)
 
 
-DataBatch = Dict[str, Dict[str, Any]]
+class Timer:
+    """
+    Simple timer to
+    """
+    def __init__(self):
+        self.start = time.time()
+
+    def checkpoint(self):
+        now = time.time()
+        diff = now - self.start
+        self.start = now
+        return diff
+
 

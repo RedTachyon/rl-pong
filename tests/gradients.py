@@ -1,6 +1,6 @@
 import numpy as np
 
-from rollout import Evaluator
+from rollout import Collector
 from models import MLPModel, LSTMModel
 from agents import Agent
 from utils import discount_rewards_to_go
@@ -29,8 +29,8 @@ class TestGradientPropagation(unittest.TestCase):
             for agent_id in agent_ids
         }
 
-        runner = Evaluator(agents, env)
-        data_batch = runner.rollout_steps(num_episodes=2, use_tqdm=False, break_gradients=False)
+        runner = Collector(agents, env)
+        data_batch = runner.collect_data(num_episodes=2, use_tqdm=False, break_gradients=False)
         obs_batch = data_batch['observations']['Agent0']
         action_batch = data_batch['actions']['Agent0']
         state_batch = data_batch['states']['Agent0']
@@ -73,8 +73,8 @@ class TestGradientPropagation(unittest.TestCase):
             for agent_id in agent_ids
         }
 
-        runner = Evaluator(agents, env)
-        data_batch = runner.rollout_steps(num_episodes=2, use_tqdm=False, break_gradients=True)
+        runner = Collector(agents, env)
+        data_batch = runner.collect_data(num_episodes=2, use_tqdm=False, break_gradients=True)
         obs_batch = data_batch['observations']['Agent0']
         action_batch = data_batch['actions']['Agent0']
         state_batch = data_batch['states']['Agent0']
