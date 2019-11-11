@@ -66,6 +66,8 @@ class Memory:
             "states": _states,
         }
 
+        self.torch_data = {}
+
     def store(self,
               obs: Dict[str, np.ndarray],
               action: Dict[str, int],
@@ -82,12 +84,14 @@ class Memory:
         for key in self.data:
             self.data[key] = {agent: [] for agent in self.agents}
 
+        self.torch_data = {}
+
     def apply_to_agent(self, func: Callable):
         return {
             agent: func(agent) for agent in self.agents
         }
 
-    def get_torch_data(self, concat_states: bool = True):
+    def get_torch_data(self):
         observations = self.apply_to_agent(lambda agent: torch.tensor(np.stack(self.data["observations"][agent])))
         actions = self.apply_to_agent(lambda agent: torch.tensor(self.data["actions"][agent]))
         rewards = self.apply_to_agent(lambda agent: torch.tensor(self.data["rewards"][agent]))
@@ -98,21 +102,18 @@ class Memory:
             # transposed_states: Tuple[List[Tensor], ...] = tuple(list(i) for i in zip(*states_))
             # ([h1, h2, ...], [c1, c2, ...]) /\
 
-            if concat_states:
-                transposed_states: Tuple[List[Tensor], ...] = tuple(list(i) for i in zip(*states_))
-                # ([h1, h2, ...], [c1, c2, ...]) /\
+            transposed_states: Tuple[List[Tensor], ...] = tuple(list(i) for i in zip(*states_))
+            # ([h1, h2, ...], [c1, c2, ...]) /\
 
-                tensor_states = tuple(torch.cat(state_type) for state_type in transposed_states)
-                # (tensor(h1, h2, ...), tensor(c1, c2, ...)) /\
+            tensor_states = tuple(torch.cat(state_type) for state_type in transposed_states)
+            # (tensor(h1, h2, ...), tensor(c1, c2, ...)) /\
 
-                return tensor_states
-            else:
-                return states_
+            return tensor_states
 
         states: Dict[str, List[Tuple[Tensor, Tensor]]] = self.data["states"]
         states = self.apply_to_agent(lambda agent: stack_states(states[agent]))
 
-        return {
+        self.torch_data = {
             "observations": observations,  # (batch_size, obs_size) float
             "actions": actions,  # (batch_size, ) int
             "rewards": rewards,  # (batch_size, ) float
@@ -121,6 +122,8 @@ class Memory:
             "states": states,  # (batch_size, 2, lstm_nodes)
         }
 
+        return self.torch_data
+
     def __getitem__(self, item):
         return self.data[item]
 
@@ -128,13 +131,11 @@ class Memory:
         return self.data.__str__()
 
 
-class Metrics:  # TODO: calculate metrics from each episode somehow
-    pass
-
-class Evaluator:
+class Evaluator:  # TODO: rename to Collector
     """
     Class to perform data collection from two agents.
     """
+
     def __init__(self, agents: Dict[str, Agent], env: MultiAgentEnv):
         self.agents = agents
         self.agent_ids: List[str] = list(self.agents.keys())
@@ -146,7 +147,6 @@ class Evaluator:
                       num_steps: Optional[int] = None,
                       num_episodes: Optional[int] = None,
                       deterministic: Optional[Dict[str, bool]] = None,
-                      break_gradients: bool = True,
                       use_tqdm: bool = False,
                       max_steps: int = 102,
                       reset_memory: bool = True,
@@ -158,7 +158,6 @@ class Evaluator:
             num_steps: number of steps to take; either this or num_episodes has to be passed (not both)
             num_episodes: number of episodes to generate
             deterministic: whether each agent should use the greedy policy; False by default
-            break_gradients: whether to break gradients between hidden states, disabling BPTT
             use_tqdm: whether a live progress bar should be displayed
             max_steps: maximum number of steps that can be taken in episodic mode, recommended just above env maximum
             reset_memory: whether to reset the memory before generating data
@@ -242,28 +241,29 @@ class Evaluator:
                 obs = next_obs
                 state = next_state
 
-        return self.memory.get_torch_data(concat_states=break_gradients)
+        return self.memory.get_torch_data()
 
     def reset(self):
         self.memory.reset()
 
 
+
 if __name__ == '__main__':
     from envs import foraging_env_creator
-    from models import MLPModel
+    from models import MLPModel, LSTMModel
 
     env = foraging_env_creator({})
 
     agent_ids = ["Agent0", "Agent1"]
 
     agents: Dict[str, Agent] = {
-        agent_id: Agent(MLPModel({}), name=agent_id)
+        agent_id: Agent(LSTMModel({}), name=agent_id)
         for agent_id in agent_ids
     }
 
     runner = Evaluator(agents, env)
 
     data_steps = runner.rollout_steps(num_steps=1000, use_tqdm=True)
-    # data_episodes = runner.rollout_steps(num_episodes=2, use_tqdm=True, include_last=True)
+    data_episodes = runner.rollout_steps(num_episodes=2, use_tqdm=True)
     # print(data_episodes['observations']['Agent0'].shape)
     # generate_video(data_episodes['observations']['Agent0'], 'vids/video.mp4')

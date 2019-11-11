@@ -66,7 +66,7 @@ class Agent:
 
     def evaluate_actions(self, obs_batch: Tensor,
                          action_batch: Tensor,
-                         state_batch: Union[Tuple, List]) -> Tuple[Tensor, Tensor, Tensor]:
+                         done_batch: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
         """
         Computes action logprobs, observation values and policy entropy for each of the (obs, action, hidden_state)
         transitions. Preserves all the necessary gradients.
@@ -74,39 +74,36 @@ class Agent:
         Args:
             obs_batch: tensor of observations, (batch_size, obs_size)
             action_batch: tensor of actions, (batch_size, )
-            state_batch: either a tuple of tensors (tensor(h1, h2, ...), tensor(c1, c2, ...))
-                         or a list of such tuples [(tensor(h1), tensor(c1)), (tensor(h2), tensor(c2)))]
-                         Tuple version is designed to work without BPTT
-                         List version - with BPTT
+            done_batch: tensor of done flags, (batch_size, )
 
         Returns:
             action_logprobs: tensor of action logprobs (batch_size, )
             values: tensor of observation values (batch_size, )
-            entropies: tensor of
+            entropies: tensor of entropy values (batch_size, )
         """
+        action_logprobs = []
+        values = []
+        entropies = []
+        state = self.get_initial_state()
+        for (obs, action, done) in zip(obs_batch, action_batch, done_batch):
+            action_distribution, value, new_state = self.model(obs.view(1, -1), state)
+            action_logprob = action_distribution.log_prob(action)
+            entropy = action_distribution.entropy()
 
-        if isinstance(state_batch, Tuple):  # (tensor({h_i}), tensor({c_i})); BP
-            action_distribution, values, states = self.model(obs_batch, state_batch)
-            values = values.flatten()
-            action_logprobs = action_distribution.log_prob(action_batch)
-            entropies = action_distribution.entropy()
-        elif isinstance(state_batch, List):  # List; BPTT
-            action_logprobs = []
-            values = []
-            entropies = []
-            for (obs, action, (h_, c_)) in zip(obs_batch, action_batch, state_batch):
-                action_distribution, value, state = self.model(obs.view(1, -1), (h_.view(1, -1), c_.view(1, -1)))
-                action_logprob = action_distribution.log_prob(action)
-                entropy = action_distribution.entropy()
+            action_logprobs.append(action_logprob)
+            values.append(value.flatten())
+            entropies.append(entropy)
 
-                action_logprobs.append(action_logprob)
-                values.append(value.flatten())
-                entropies.append(entropy)
-            action_logprobs = torch.cat(action_logprobs)
-            values = torch.cat(values)
-            entropies = torch.cat(entropies)
-        else:
-            raise ValueError("state_batch should be either a tuple of tensors, or a list of such tuples")
+            # Carry the state to the next iteration. This can also be used for custom gradient chopping
+            # to prevent vanishing/exploding gradients, e.g. .detach() every 20 steps
+            if done:
+                state = self.get_initial_state()
+            else:
+                state = new_state
+
+        action_logprobs = torch.cat(action_logprobs)
+        values = torch.cat(values)
+        entropies = torch.cat(entropies)
 
         return action_logprobs, values, entropies
 
@@ -117,8 +114,6 @@ class Agent:
 if __name__ == '__main__':
     mlp_agent = Agent(MLPModel({}), "MLPAgent")
     lstm_agent = Agent(LSTMModel({}), "LSTMAgent")
-
-    # torch.tensor([1,2]).grad
 
     env = foraging_env_creator({})
     obs_ = env.reset()

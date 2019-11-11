@@ -38,9 +38,10 @@ def append_dict(var: Dict[str, T], data_dict: Dict[str, List[T]]):
 
 def discount_rewards_to_go(rewards: Tensor, dones: Tensor, gamma: float = 1.):
 
+    dones = dones.to(torch.int32)  # Torch can't handle reversing boolean tensors
     current_reward = 0
     discounted_rewards = []
-    for reward, done in zip(rewards, dones):
+    for reward, done in zip(rewards.flip(0), dones.flip(0)):
         if done:
             current_reward = 0
         current_reward = reward + gamma * current_reward
