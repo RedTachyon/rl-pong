@@ -142,10 +142,9 @@ class Collector:
         self.agent_ids: List[str] = list(self.agents.keys())
         self.env = env
         self.memory = Memory(self.agent_ids)
-        self.metrics = {}
 
     def collect_data(self,
-                     num_steps: Optional[int] = None,
+                     num_steps: Optional[int] = None,  # TODO: handle episode ends?
                      num_episodes: Optional[int] = None,
                      deterministic: Optional[Dict[str, bool]] = None,
                      disable_tqdm: bool = True,

@@ -9,6 +9,7 @@ from torch.optim.optimizer import Optimizer
 import gym
 
 from agents import Agent
+from rollout import Collector
 from envs import MultiAgentEnv
 from utils import with_default_config, DataBatch, discount_rewards_to_go, Timer
 
@@ -34,8 +35,10 @@ class PPOTrainer:
         self.env = env
 
         default_config = {
+            # Trainer settings
             "agents_to_optimize": None,
             "batch_size": 10000,  # Number of steps to sample at each iteration, TODO: make it possible to use epochs
+            # Agent settings
             "optimizer": optim.Adam,
             "optimizer_kwargs": {
                 "lr": 1e-3,
@@ -45,7 +48,15 @@ class PPOTrainer:
                 "amsgrad": False
             },
             "gamma": 0.95,  # Discount factor
-            "eps": 0.1,     # PPO clip parameter
+
+            # PPO settings
+            "ppo_steps": 25,
+            "eps": 0.1,  # PPO clip parameter
+            "target_kl": 0.01,  # KL divergence limit
+            "value_loss_coeff": 0.1,
+            "entropy_coeff": 0.1,
+
+            # Tensorboard settings
             "tensorboard_name": "test"
 
         }
@@ -58,14 +69,14 @@ class PPOTrainer:
             for agent_id, agent in self.agents.items() if agent_id in self.agents_to_optimize
         }
 
-        self.gamma: float = self.config["gamma"]
+        self.gamma: float = self.config["gamma"]  # TODO use @property instead?
         self.eps: float = self.config["eps"]
 
         self.writer: SummaryWriter
         if self.config["tensorboard_name"]:
             dt_string = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            path = Path.home() / "tb_logs" / f"{self.config['tensorboard_name']}_{dt_string}"
-            self.writer = SummaryWriter(str(path))
+            self.path = Path.home() / "tb_logs" / f"{self.config['tensorboard_name']}_{dt_string}"
+            self.writer = SummaryWriter(str(self.path))
         else:
             self.writer = None
 
@@ -102,36 +113,50 @@ class PPOTrainer:
             done_batch = data_batch['dones'][agent_id]
             # state_batch = data_batch['states'][agent_id]  # unused
 
-            timer.checkpoint()
             logprob_batch, value_batch, entropy_batch = agent.evaluate_actions(obs_batch, action_batch, done_batch)
-
-            metrics[f"{agent_id}/rollout_eval_time"] = timer.checkpoint()
 
             discounted_batch = discount_rewards_to_go(reward_batch, done_batch, self.gamma)
             advantages_batch = (discounted_batch - value_batch).detach()
             advantages_batch = (advantages_batch - advantages_batch.mean()) / (advantages_batch.std() + 1e-6)
 
-            ############################################# Compute the loss #############################################
-            # prob_ratio = torch.exp(logprob_batch - old_logprobs_batch)
-            # surr1 = prob_ratio * advantages_batch
-            # surr2 = torch.clamp(prob_ratio, 1. - self.eps, 1 + self.eps) * advantages_batch
-            #
-            # policy_loss = -torch.min(surr1, surr2).mean()
-
-            ### PG loss ###
-            pg_loss = -logprob_batch * advantages_batch
-            value_loss = (value_batch - discounted_batch)**2
-
-            loss = (pg_loss + value_loss).mean()
-
-            ############################################### Update step ###############################################
+            # big TODO: add logging (logging/eliot)
+            kl_divergence = 0.
+            ppo_step = 0
             timer.checkpoint()
+            for ppo_step in range(self.config["ppo_steps"]):
 
-            optimizer.zero_grad()
-            loss.backward(retain_graph=True)
-            optimizer.step()
+                logprob_batch, value_batch, entropy_batch = agent.evaluate_actions(obs_batch, action_batch, done_batch)
 
-            metrics[f"{agent_id}/update_time"] = timer.checkpoint()
+                ######################################### Compute the loss #############################################
+                prob_ratio = torch.exp(logprob_batch - old_logprobs_batch)
+                surr1 = prob_ratio * advantages_batch
+                surr2 = torch.clamp(prob_ratio, 1. - self.eps, 1 + self.eps) * advantages_batch
+
+                kl_divergence = torch.mean(old_logprobs_batch - logprob_batch).item()  # review formula?
+
+                policy_loss = -torch.min(surr1, surr2).mean()
+                value_loss = (value_batch - discounted_batch)**2
+
+                loss_batch = (policy_loss
+                              + self.config["value_loss_coeff"] * value_loss
+                              - self.config["entropy_coeff"] * entropy_batch)
+
+                loss = loss_batch.mean()
+
+                ########################################### Update step ###############################################
+
+                optimizer.zero_grad()
+                # noinspection PyArgumentList
+                loss.backward(retain_graph=True)
+                optimizer.step()
+
+                ### Early stopping ###
+                if kl_divergence > 1.5 * self.config["target_kl"]:
+                    break
+
+            metrics[f"{agent_id}/time_update"] = timer.checkpoint()
+            metrics[f"{agent_id}/kl_divergence"] = kl_divergence
+            metrics[f"{agent_id}/steps_made"] = ppo_step
 
             ############################################# Collect metrics ############################################
 
@@ -157,7 +182,6 @@ class PPOTrainer:
 
             if extra_metrics is not None:
                 metrics = with_default_config(metrics, extra_metrics)  # add extra_metrics if not computed here
-
             self.write_dict(metrics, step)
 
     def write_dict(self, metrics: Dict[str, Union[int, float]], step: int):
@@ -175,10 +199,9 @@ class PPOTrainer:
             timer.checkpoint()
             data_batch = self.collector.collect_data(num_steps=self.config["batch_size"])
             data_time = timer.checkpoint()
-            time_metric = {f"{agent_id}/data_collection_time": data_time for agent_id in self.agent_ids}
+            time_metric = {f"{agent_id}/time_data_collection": data_time for agent_id in self.agent_ids}
 
             self.train_on_data(data_batch, step, extra_metrics=time_metric, timer=timer)
-
 
 
 if __name__ == '__main__':

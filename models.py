@@ -100,14 +100,14 @@ class LSTMModel(BaseModel):
             for in_size, out_size in zip(pre_layers, pre_layers[1:])
         ])
 
+        self.lstm = nn.LSTMCell(input_size=pre_layers[-1],
+                                hidden_size=lstm_nodes,
+                                bias=True)
+
         self.postprocess_layers = nn.ModuleList([
             nn.Linear(in_size, out_size)
             for in_size, out_size in zip(post_layers, post_layers[1:])
         ])
-
-        self.lstm = nn.LSTMCell(input_size=pre_layers[-1],
-                                hidden_size=lstm_nodes,
-                                bias=True)
 
         self.policy_head = nn.Linear(post_layers[-1], num_actions)
         self.value_head = nn.Linear(post_layers[-1], 1)
