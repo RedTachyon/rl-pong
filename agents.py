@@ -80,7 +80,7 @@ class Agent:
             action_logprobs: tensor of action logprobs (batch_size, )
             values: tensor of observation values (batch_size, )
             entropies: tensor of entropy values (batch_size, )
-        """  # TODO: for non-recurrent policies, consider batch evaluation
+        """  # TODO: for non-recurrent policies, consider batch evaluation, and in general optimize as much as possible
         action_logprobs = []
         values = []
         entropies = []
