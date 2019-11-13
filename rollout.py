@@ -150,7 +150,8 @@ class Collector:
                      disable_tqdm: bool = True,
                      max_steps: int = 102,
                      reset_memory: bool = True,
-                     include_last: bool = False) -> DataBatch:
+                     include_last: bool = False,
+                     finish_episode: bool = True) -> DataBatch:
         """
         Performs a rollout of the agents in the environment, for an indicated number of steps or episodes.
 
@@ -162,6 +163,7 @@ class Collector:
             max_steps: maximum number of steps that can be taken in episodic mode, recommended just above env maximum
             reset_memory: whether to reset the memory before generating data
             include_last: whether to include the last observation in episodic mode - useful for visualizations
+            finish_episode: in step mode, whether to finish the last episode (resulting in more steps than num_steps)
 
         Returns: dictionary with the gathered data in the following format:
 
@@ -204,8 +206,9 @@ class Collector:
 
         episode = 0
 
-        steps = num_steps if num_steps else max_steps * num_episodes
-        for step in trange(steps, disable=disable_tqdm):
+        end_flag = False
+        full_steps = (num_steps + 100 * int(finish_episode)) if num_steps else max_steps * num_episodes
+        for step in trange(full_steps, disable=disable_tqdm):
             # Compute the action for each agent
             action_info = {  # action, logprob, state
                 agent_id: self.agents[agent_id].compute_single_action(obs[agent_id],
@@ -225,6 +228,9 @@ class Collector:
             # Saving to memory
             self.memory.store(obs, action, reward, logprob, done, state)
 
+            # Handle episode/loop ending
+            if finish_episode and step + 1 == num_steps:
+                end_flag = True
             # Update the current obs and state - either reset, or keep going
             if all(done.values()):  # episode is over
                 if include_last:  # record the last observation along with placeholder action/reward/logprob
@@ -233,8 +239,12 @@ class Collector:
                 state = {
                     agent_id: self.agents[agent_id].get_initial_state() for agent_id in self.agent_ids
                 }
+                # Episode mode handling
                 episode += 1
                 if episode == num_episodes:
+                    break
+                # Step mode with episode finish handling
+                if end_flag:
                     break
             else:  # keep going
                 obs = next_obs

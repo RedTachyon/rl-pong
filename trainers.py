@@ -112,13 +112,15 @@ class PPOTrainer:
             old_logprobs_batch = data_batch['logprobs'][agent_id]
             done_batch = data_batch['dones'][agent_id]
             # state_batch = data_batch['states'][agent_id]  # unused
+            # breakpoint()
 
             logprob_batch, value_batch, entropy_batch = agent.evaluate_actions(obs_batch, action_batch, done_batch)
 
             discounted_batch = discount_rewards_to_go(reward_batch, done_batch, self.gamma)
-            advantages_batch = (discounted_batch - value_batch).detach()
+            advantages_batch = (discounted_batch - value_batch.view(-1)).detach()
             advantages_batch = (advantages_batch - advantages_batch.mean()) / (advantages_batch.std() + 1e-6)
 
+            # Initialize metrics
             kl_divergence = 0.
             ppo_step = 0
             value_loss = torch.tensor(0)
@@ -126,7 +128,6 @@ class PPOTrainer:
             loss = torch.tensor(0)
             timer.checkpoint()
             for ppo_step in range(self.config["ppo_steps"]):
-
                 logprob_batch, value_batch, entropy_batch = agent.evaluate_actions(obs_batch, action_batch, done_batch)
 
                 ######################################### Compute the loss #############################################
@@ -137,7 +138,7 @@ class PPOTrainer:
                 kl_divergence = torch.mean(old_logprobs_batch - logprob_batch).item()  # review formula?
 
                 policy_loss = -torch.min(surr1, surr2)
-                value_loss = (value_batch - discounted_batch)**2
+                value_loss = (value_batch.view(-1) - discounted_batch)**2
 
                 loss_batch = (policy_loss.mean()
                               + self.config["value_loss_coeff"] * value_loss.mean()
