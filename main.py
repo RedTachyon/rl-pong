@@ -1,38 +1,71 @@
-from typing import Dict, Tuple
+import numpy as np
 
-from torch import nn as nn, Tensor
-from torch.distributions import Distribution, Categorical
-from torch.nn import functional as F
+import gym
 
 from rollout import Collector
-from trainers import PPOTrainer
+from models import MLPModel, LSTMModel, RelationModel
 from agents import Agent
-from models import MLPModel, LSTMModel
+from utils import discount_rewards_to_go
 from envs import foraging_env_creator
+from visualize import generate_video
+from trainers import PPOTrainer
 
+import torch
+from torch import optim
+import torch.nn.functional as F
+
+from typing import Dict
+
+from tqdm import trange
+
+import time
+
+SUBGOALS = 4
 
 env_config = {
     "rows": 7,
     "cols": 7,
-    "subgoals": 2,
+    "subgoals": SUBGOALS,
     "random_positions": True,
-    "max_steps": 100
+    "max_steps": 100,
+    #     "seed": 8
 }
-
 env = foraging_env_creator(env_config)
+
+agent_config = {
+    # SHARED
+    "input_size": (3 + SUBGOALS) * 3,
+    "num_actions": 5,
+    "activation": F.leaky_relu,
+
+    # MLP
+    "hidden_sizes": (64, 64),
+
+    # LSTM
+    "pre_lstm_sizes": (32, ),
+    "lstm_nodes": 32,
+    "post_lstm_sizes": (32, ),
+
+    # Rel
+    "num_subgoals": SUBGOALS,
+    "emb_size": 16,
+    "rel_hiddens": (64, 64, 64, 64, 64, 64, 64, ),
+    "mlp_hiddens": (32, ),
+}
 
 agent_ids = ["Agent0", "Agent1"]
 agents: Dict[str, Agent] = {
-    agent_id: Agent(LSTMModel({}), name=agent_id)
+    agent_id: Agent(MLPModel(agent_config), name=agent_id)
     for agent_id in agent_ids
 }
 
-collector = Collector(agents, env)
-trainer = PPOTrainer(agents, config={})
+trainer_config = {
+    "tensorboard_name": "ppo_foraging",
+    "batch_size": 10000,
+    "value_loss_coeff": 1.,
+    "ppo_steps": 100,
+}
 
-data_batch = collector.collect_data(num_steps=1000)
-old_weight = list(agents['Agent0'].model.parameters())[0].detach().numpy()
+trainer = PPOTrainer(agents, env, config=trainer_config)
 
-trainer.train_on_data(data_batch)
-
-new_weight = list(agents['Agent0'].model.parameters())[0].detach().numpy()
+trainer.train(100)
