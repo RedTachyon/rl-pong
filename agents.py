@@ -80,30 +80,37 @@ class Agent:
             action_logprobs: tensor of action logprobs (batch_size, )
             values: tensor of observation values (batch_size, )
             entropies: tensor of entropy values (batch_size, )
-        """  # TODO: for non-recurrent policies, consider batch evaluation, and in general optimize as much as possible
+        """
         action_logprobs = []
         values = []
         entropies = []
         state = self.get_initial_state()
-        for (obs, action, done) in zip(obs_batch, action_batch, done_batch):
-            action_distribution, value, new_state = self.model(obs.view(1, -1), state)
-            action_logprob = action_distribution.log_prob(action)
-            entropy = action_distribution.entropy()
 
-            action_logprobs.append(action_logprob)
-            values.append(value.flatten())
-            entropies.append(entropy)
+        if not self.stateful:  # Offers a huge speedup, need to do the chopping,
+            action_distribution, values, new_states = self.model(obs_batch, state)
+            action_logprobs = action_distribution.log_prob(action_batch)
+            entropies = action_distribution.entropy()
 
-            # Carry the state to the next iteration. This can also be used for custom gradient chopping
-            # to prevent vanishing/exploding gradients, e.g. .detach() every 20 steps
-            if done:
-                state = self.get_initial_state()
-            else:
-                state = new_state
+        else:
+            for (obs, action, done) in zip(obs_batch, action_batch, done_batch):
+                action_distribution, value, new_state = self.model(obs.view(1, -1), state)
+                action_logprob = action_distribution.log_prob(action)
+                entropy = action_distribution.entropy()
 
-        action_logprobs = torch.cat(action_logprobs)
-        values = torch.cat(values)
-        entropies = torch.cat(entropies)
+                action_logprobs.append(action_logprob)
+                values.append(value.flatten())
+                entropies.append(entropy)
+
+                # Carry the state to the next iteration. This can also be used for custom gradient chopping
+                # to prevent vanishing/exploding gradients, e.g. .detach() every 20 steps
+                if done:
+                    state = self.get_initial_state()
+                else:
+                    state = new_state
+
+            action_logprobs = torch.cat(action_logprobs)
+            values = torch.cat(values)
+            entropies = torch.cat(entropies)
 
         return action_logprobs, values, entropies
 

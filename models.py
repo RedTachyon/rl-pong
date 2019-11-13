@@ -5,6 +5,7 @@ from torch import nn, Tensor
 from torch.distributions import Distribution, Categorical
 from torch.nn import functional as F
 
+from layers import RelationLayer
 from utils import with_default_config
 
 
@@ -65,6 +66,39 @@ class MLPModel(BaseModel):
         return action_distribution, value, state
 
     def get_initial_state(self):
+        return ()
+
+
+class RelationModel(BaseModel):
+    def __init__(self, config: Dict):
+        super().__init__(config)
+
+        default_config = {
+            "num_actions": 5,
+            "num_subgoals": 2,
+            "emb_size": 4,
+            "rel_hiddens": (16, 16, ),
+            "mlp_hiddens": (16, ),
+            "activation": F.leaky_relu
+        }
+        self.config = with_default_config(config, default_config)
+
+        self.relation_layer = RelationLayer(self.config)
+
+        self.policy_head = nn.Linear(self.config["mlp_hiddens"][-1], self.config["num_actions"])
+        self.value_head = nn.Linear(self.config["mlp_hiddens"][-1], 1)
+
+    def forward(self, x: Tensor, state: Tuple) -> Tuple[Distribution, Tensor, Tuple[Tensor, Tensor]]:
+        x = self.relation_layer(x)
+
+        action_logits = self.policy_head(x)
+        value = self.value_head(x)
+
+        action_distribution = Categorical(logits=action_logits)
+
+        return action_distribution, value, state
+
+    def get_initial_state(self) -> Tuple:
         return ()
 
 

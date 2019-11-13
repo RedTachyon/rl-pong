@@ -43,7 +43,7 @@ class PPOTrainer:
             "optimizer_kwargs": {
                 "lr": 1e-3,
                 "betas": (0.9, 0.999),
-                "eps": 1e-8,
+                "eps": 1e-7,
                 "weight_decay": 0,
                 "amsgrad": False
             },
@@ -119,9 +119,11 @@ class PPOTrainer:
             advantages_batch = (discounted_batch - value_batch).detach()
             advantages_batch = (advantages_batch - advantages_batch.mean()) / (advantages_batch.std() + 1e-6)
 
-            # big TODO: add logging (logging/eliot)
             kl_divergence = 0.
             ppo_step = 0
+            value_loss = torch.tensor(0)
+            policy_loss = torch.tensor(0)
+            loss = torch.tensor(0)
             timer.checkpoint()
             for ppo_step in range(self.config["ppo_steps"]):
 
@@ -134,29 +136,31 @@ class PPOTrainer:
 
                 kl_divergence = torch.mean(old_logprobs_batch - logprob_batch).item()  # review formula?
 
-                policy_loss = -torch.min(surr1, surr2).mean()
+                policy_loss = -torch.min(surr1, surr2)
                 value_loss = (value_batch - discounted_batch)**2
 
-                loss_batch = (policy_loss
-                              + self.config["value_loss_coeff"] * value_loss
-                              - self.config["entropy_coeff"] * entropy_batch)
+                loss_batch = (policy_loss.mean()
+                              + self.config["value_loss_coeff"] * value_loss.mean()
+                              - self.config["entropy_coeff"] * entropy_batch.mean())
 
                 loss = loss_batch.mean()
 
                 ########################################### Update step ###############################################
 
                 optimizer.zero_grad()
-                # noinspection PyArgumentList
-                loss.backward(retain_graph=True)
+                loss.backward()
                 optimizer.step()
 
                 ### Early stopping ###
-                if kl_divergence > 1.5 * self.config["target_kl"]:
+                if kl_divergence > self.config["target_kl"]:
                     break
 
             metrics[f"{agent_id}/time_update"] = timer.checkpoint()
             metrics[f"{agent_id}/kl_divergence"] = kl_divergence
             metrics[f"{agent_id}/steps_made"] = ppo_step
+            metrics[f"{agent_id}/policy_loss"] = policy_loss.mean().item()
+            metrics[f"{agent_id}/value_loss"] = value_loss.mean().item()
+            metrics[f"{agent_id}/total_loss"] = loss.detach().item()
 
             ############################################# Collect metrics ############################################
 
