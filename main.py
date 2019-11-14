@@ -6,7 +6,6 @@ from rollout import Collector
 from models import MLPModel, LSTMModel, RelationModel
 from agents import Agent
 from utils import discount_rewards_to_go
-from envs import foraging_env_creator
 from visualize import generate_video
 from trainers import PPOTrainer
 

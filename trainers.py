@@ -11,13 +11,15 @@ import gym
 from agents import Agent
 from rollout import Collector
 from envs import MultiAgentEnv
-from utils import with_default_config, DataBatch, discount_rewards_to_go, Timer
+from utils import with_default_config, DataBatch, discount_rewards_to_go, Timer, get_optimizer
 
 from torch.utils.tensorboard import SummaryWriter
 
 from pathlib import Path
 from datetime import datetime
 from tqdm import trange
+
+import pickle
 
 
 class PPOTrainer:
@@ -28,7 +30,7 @@ class PPOTrainer:
     The set of agents should not be changed. The state_dict should be alright to be loaded?
     """
 
-    def __init__(self, agents: Dict[str, Agent], env: gym.Env, config: Dict[str, Any]):
+    def __init__(self, agents: Dict[str, Agent], env: MultiAgentEnv, config: Dict[str, Any]):
         self.agents = agents
         self.agent_ids: List[str] = list(agents.keys())
 
@@ -36,10 +38,10 @@ class PPOTrainer:
 
         default_config = {
             # Trainer settings
-            "agents_to_optimize": None,
+            "agents_to_optimize": None,  # ids of agents that should be optimized
             "batch_size": 10000,  # Number of steps to sample at each iteration, TODO: make it possible to use epochs
             # Agent settings
-            "optimizer": optim.Adam,
+            "optimizer": "adam",
             "optimizer_kwargs": {
                 "lr": 1e-3,
                 "betas": (0.9, 0.999),
@@ -57,7 +59,10 @@ class PPOTrainer:
             "entropy_coeff": 0.1,
 
             # Tensorboard settings
-            "tensorboard_name": "test"
+            "tensorboard_name": "test",
+
+            # Compatibility
+            "tuple": False
 
         }
         self.config = with_default_config(config, default_config)
@@ -65,7 +70,9 @@ class PPOTrainer:
             else self.config['agents_to_optimize']
 
         self.optimizers: Dict[str, Optimizer] = {
-            agent_id: self.config["optimizer"](agent.model.parameters(), **self.config["optimizer_kwargs"])
+            agent_id:
+                get_optimizer(self.config["optimizer"])(agent.model.parameters(), **self.config["optimizer_kwargs"])
+
             for agent_id, agent in self.agents.items() if agent_id in self.agents_to_optimize
         }
 
@@ -77,6 +84,21 @@ class PPOTrainer:
             dt_string = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             self.path = Path.home() / "tb_logs" / f"{self.config['tensorboard_name']}_{dt_string}"
             self.writer = SummaryWriter(str(self.path))
+
+            # Log the configs
+            with open(str(self.path/"trainer_config.pkl"), "wb") as f:
+                pickle.dump(self.config, f)
+
+            for agent_id in self.agent_ids:
+                with open(str(self.path/f"{agent_id}_config.pkl"), "wb") as f:
+                    pickle.dump(self.agents[agent_id].model.config, f)
+
+            with open(str(self.path/"env_config.pkl"), "wb") as f:
+                try:
+                    env_config = self.env.config
+                    pickle.dump(env_config, f)
+                except AttributeError:
+                    pass
         else:
             self.writer = None
 
@@ -87,7 +109,7 @@ class PPOTrainer:
                       extra_metrics: Optional[Dict[str, Any]] = None,
                       timer: Optional[Timer] = None):
         """
-        Performs a single update step with PPO (WiP) on the given batch of data.
+        Performs a single update step with PPO on the given batch of data.
 
         Args:
             data_batch: DataBatch, dictionary

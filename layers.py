@@ -5,7 +5,7 @@ from torch import Tensor
 
 from typing import Dict, Any, Callable
 
-from utils import with_default_config
+from utils import with_default_config, get_activation
 
 
 class RelationLayer(nn.Module):
@@ -17,12 +17,12 @@ class RelationLayer(nn.Module):
             "emb_size": 4,
             "rel_hiddens": (16, 16, ),
             "mlp_hiddens": (16, ),
-            "activation": F.leaky_relu
+            "activation": "leaky_relu"
         }
 
         self.config = with_default_config(config, default_config)
 
-        self.activation: Callable[[Tensor], Tensor] = self.config["activation"]
+        self.activation: Callable[[Tensor], Tensor] = get_activation(self.config["activation"])
 
         self.own_embedding = nn.Parameter(torch.randn(self.config["emb_size"])/10., requires_grad=True)
         self.agent_embedding = nn.Parameter(torch.randn(self.config["emb_size"])/10., requires_grad=True)

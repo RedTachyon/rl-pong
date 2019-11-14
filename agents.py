@@ -8,8 +8,6 @@ from models import BaseModel, MLPModel, LSTMModel
 
 from typing import Tuple, Union, List
 
-from envs import foraging_env_creator
-
 
 class Agent:
     def __init__(self, model: BaseModel, name: str):

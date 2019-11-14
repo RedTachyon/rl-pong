@@ -6,13 +6,14 @@ from torch.distributions import Distribution, Categorical
 from torch.nn import functional as F
 
 from layers import RelationLayer
-from utils import with_default_config
+from utils import with_default_config, get_activation
 
 
 class BaseModel(nn.Module):
     def __init__(self, config: Dict):
         super().__init__()
         self._stateful = False
+        self.config = config
 
     def forward(self, x: Tensor, state: Tuple) -> Tuple[Distribution, Tensor, Tuple[Tensor, Tensor]]:
         raise NotImplementedError
@@ -33,14 +34,14 @@ class MLPModel(BaseModel):
             "input_size": 15,
             "num_actions": 5,
             "hidden_sizes": (64, 64),
-            "activation": F.leaky_relu,
+            "activation": "leaky_relu",
         }
         self.config = with_default_config(config, default_config)
 
         input_size: int = self.config.get("input_size")
         num_actions: int = self.config.get("num_actions")
         hidden_sizes: Tuple[int] = self.config.get("hidden_sizes")
-        self.activation: Callable = self.config.get("activation")
+        self.activation: Callable = get_activation(self.config.get("activation"))
 
         layer_sizes = (input_size, ) + hidden_sizes
 
@@ -79,7 +80,7 @@ class RelationModel(BaseModel):
             "emb_size": 4,
             "rel_hiddens": (16, 16, ),
             "mlp_hiddens": (16, ),
-            "activation": F.leaky_relu
+            "activation": "leaky_relu"
         }
         self.config = with_default_config(config, default_config)
 
@@ -114,7 +115,7 @@ class LSTMModel(BaseModel):
             "pre_lstm_sizes": (32, ),
             "lstm_nodes": 32,
             "post_lstm_sizes": (32, ),
-            "activation": F.leaky_relu
+            "activation": "leaky_relu"
         }
         self.config = with_default_config(config, default_config)
 
@@ -124,7 +125,7 @@ class LSTMModel(BaseModel):
         pre_lstm_sizes: Tuple[int] = self.config.get("pre_lstm_sizes")
         lstm_nodes: int = self.config.get("lstm_nodes")
         post_lstm_sizes: Tuple[int] = self.config.get("post_lstm_sizes")
-        self.activation: Callable = self.config.get("activation")
+        self.activation: Callable = get_activation(self.config.get("activation"))
 
         pre_layers = (input_size,) + pre_lstm_sizes
         post_layers = (lstm_nodes, ) + post_lstm_sizes

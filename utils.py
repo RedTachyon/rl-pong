@@ -1,8 +1,17 @@
-from typing import Dict, List, TypeVar, Union, Tuple, Any
+from typing import Dict, List, TypeVar, Union, Tuple, Any, Callable, Type
 
 import torch
 from torch import Tensor
+import torch.nn.functional as F
 import time
+
+from torch.optim.optimizer import Optimizer
+from torch.optim.adam import Adam
+from torch.optim.adadelta import Adadelta
+from torch.optim.adagrad import Adagrad
+from torch.optim.adamw import AdamW
+from torch.optim.adamax import Adamax
+from torch.optim.sgd import SGD
 
 
 DataBatch = Dict[str, Dict[str, Any]]
@@ -41,7 +50,7 @@ def append_dict(var: Dict[str, T], data_dict: Dict[str, List[T]]):
         data_dict[key].append(value)
 
 
-def discount_rewards_to_go(rewards: Tensor, dones: Tensor, gamma: float = 1.):
+def discount_rewards_to_go(rewards: Tensor, dones: Tensor, gamma: float = 1.) -> Tensor:
     """
     Computes the discounted rewards to go, handling episode endings. Nothing unusual.
     """
@@ -56,6 +65,39 @@ def discount_rewards_to_go(rewards: Tensor, dones: Tensor, gamma: float = 1.):
     return torch.tensor(discounted_rewards)
 
 
+def get_optimizer(opt_name: str) -> Type[Optimizer]:
+    optimizers = {
+        "adam": Adam,
+        "adadelta": Adadelta,
+        "adamw": AdamW,
+        "adagrad": Adagrad,
+        "adamax": Adamax,
+        "sgd": SGD
+    }
+
+    if opt_name not in optimizers.keys():
+        raise ValueError(f"Wrong optimizer: {opt_name} is not a valid optimizer name. ")
+
+    return optimizers[opt_name]
+
+
+def get_activation(act_name: str) -> Callable[[Tensor], Tensor]:
+    activations = {
+        "relu": F.relu,
+        "relu6": F.relu6,
+        "elu": F.elu,
+        "leaky_relu": F.leaky_relu,
+        "sigmoid": F.sigmoid,
+        "tanh": F.tanh,
+        "softmax": F.softmax,
+    }
+
+    if act_name not in activations.keys():
+        raise ValueError(f"Wrong activation: {act_name} is not a valid activation function name.")
+
+    return activations[act_name]
+
+
 class Timer:
     """
     Simple timer to
@@ -63,10 +105,11 @@ class Timer:
     def __init__(self):
         self.start = time.time()
 
-    def checkpoint(self):
+    def checkpoint(self) -> float:
         now = time.time()
         diff = now - self.start
         self.start = now
         return diff
 
-
+def convert(elements: Tuple, names: List[str]):
+    pass
