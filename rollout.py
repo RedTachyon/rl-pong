@@ -1,7 +1,7 @@
 import gym
 import numpy as np
 
-from typing import Dict, Callable, List, Tuple, Optional
+from typing import Dict, Callable, List, Tuple, Optional, Union
 
 from agents import Agent
 from envs import MultiAgentEnv
@@ -9,7 +9,7 @@ from envs import MultiAgentEnv
 import torch
 from torch import Tensor
 
-from utils import append_dict, DataBatch
+from utils import append_dict, DataBatch, convert, convert_obs_to_dict, convert_action_to_env
 
 from tqdm import trange
 
@@ -137,11 +137,13 @@ class Collector:
     Class to perform data collection from two agents.
     """
 
-    def __init__(self, agents: Dict[str, Agent], env: gym.Env):
+    def __init__(self, agents: Dict[str, Agent], env: gym.Env, tuple_mode: bool = False):
         self.agents = agents
         self.agent_ids: List[str] = list(self.agents.keys())
         self.env = env
         self.memory = Memory(self.agent_ids)
+
+        self.tuple_mode = tuple_mode
 
     def collect_data(self,
                      num_steps: Optional[int] = None,  # TODO: handle episode ends?
@@ -199,7 +201,12 @@ class Collector:
         if reset_memory:
             self.reset()
 
+        # obs: Union[Tuple, Dict]
         obs = self.env.reset()
+
+        if self.tuple_mode:  # Convert obs to dict
+            obs = convert_obs_to_dict(obs, self.agent_ids)
+
         state = {
             agent_id: self.agents[agent_id].get_initial_state() for agent_id in self.agent_ids
         }
@@ -210,6 +217,7 @@ class Collector:
         full_steps = (num_steps + 100 * int(finish_episode)) if num_steps else max_steps * num_episodes
         for step in trange(full_steps, disable=disable_tqdm):
             # Compute the action for each agent
+            # breakpoint()
             action_info = {  # action, logprob, state
                 agent_id: self.agents[agent_id].compute_single_action(obs[agent_id],
                                                                       state[agent_id],
@@ -223,7 +231,18 @@ class Collector:
             next_state = {agent_id: action_info[agent_id][2] for agent_id in self.agent_ids}
 
             # Actual step in the environment
-            next_obs, reward, done, info = self.env.step(action)
+
+            if self.tuple_mode:  # Convert action to env-compatible
+                env_action = convert_action_to_env(action, self.agent_ids)
+            else:
+                env_action = action
+
+            next_obs, reward, done, info = self.env.step(env_action)
+
+            if self.tuple_mode:  # Convert outputs to dicts
+                next_obs = convert_obs_to_dict(next_obs, self.agent_ids)
+                reward = convert_obs_to_dict(reward, self.agent_ids)
+                done = {agent_id: done for agent_id in self.agent_ids}
 
             # Saving to memory
             self.memory.store(obs, action, reward, logprob, done, state)
@@ -231,11 +250,14 @@ class Collector:
             # Handle episode/loop ending
             if finish_episode and step + 1 == num_steps:
                 end_flag = True
+
             # Update the current obs and state - either reset, or keep going
             if all(done.values()):  # episode is over
                 if include_last:  # record the last observation along with placeholder action/reward/logprob
                     self.memory.store(next_obs, action, reward, logprob, done, next_state)
                 obs = self.env.reset()
+                if self.tuple_mode:
+                    obs = convert_obs_to_dict(obs, self.agent_ids)
                 state = {
                     agent_id: self.agents[agent_id].get_initial_state() for agent_id in self.agent_ids
                 }
@@ -260,18 +282,18 @@ if __name__ == '__main__':
     from envs import foraging_env_creator
     from models import MLPModel, LSTMModel
 
-    env = foraging_env_creator({})
-
-    agent_ids = ["Agent0", "Agent1"]
-
-    agents: Dict[str, Agent] = {
-        agent_id: Agent(LSTMModel({}), name=agent_id)
-        for agent_id in agent_ids
-    }
-
-    runner = Collector(agents, env)
-
-    data_steps = runner.collect_data(num_steps=1000, disable_tqdm=False)
-    data_episodes = runner.collect_data(num_episodes=2, disable_tqdm=False)
+    # env = foraging_env_creator({})
+    #
+    # agent_ids = ["Agent0", "Agent1"]
+    #
+    # agents: Dict[str, Agent] = {
+    #     agent_id: Agent(LSTMModel({}), name=agent_id)
+    #     for agent_id in agent_ids
+    # }
+    #
+    # runner = Collector(agents, env)
+    #
+    # data_steps = runner.collect_data(num_steps=1000, disable_tqdm=False)
+    # data_episodes = runner.collect_data(num_episodes=2, disable_tqdm=False)
     # print(data_episodes['observations']['Agent0'].shape)
     # generate_video(data_episodes['observations']['Agent0'], 'vids/video.mp4')

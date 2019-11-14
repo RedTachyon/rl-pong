@@ -62,7 +62,7 @@ class PPOTrainer:
             "tensorboard_name": "test",
 
             # Compatibility
-            "tuple": False
+            "tuple_mode": False
 
         }
         self.config = with_default_config(config, default_config)
@@ -102,7 +102,7 @@ class PPOTrainer:
         else:
             self.writer = None
 
-        self.collector = Collector(agents=self.agents, env=self.env)
+        self.collector = Collector(agents=self.agents, env=self.env, tuple_mode=self.config["tuple_mode"])
 
     def train_on_data(self, data_batch: DataBatch,
                       step: int = 0,

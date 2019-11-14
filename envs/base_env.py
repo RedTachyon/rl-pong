@@ -14,6 +14,9 @@ class MultiAgentEnv(gym.Env):
     Base class for a gym-like environment for multiple agents. An agent is identified with its id (string),
     and most interactions are communicated through that API (actions, states, etc)
     """
+    def __init__(self):
+        self.config = {}
+        raise NotImplementedError
 
     def reset(self) -> StateDict:
         """
