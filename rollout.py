@@ -9,7 +9,7 @@ from envs import MultiAgentEnv
 import torch
 from torch import Tensor
 
-from utils import append_dict, DataBatch, convert, convert_obs_to_dict, convert_action_to_env
+from utils import append_dict, DataBatch, convert_obs_to_dict, convert_action_to_env
 
 from tqdm import trange
 

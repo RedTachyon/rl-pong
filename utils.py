@@ -128,19 +128,3 @@ def convert_action_to_env(action: Dict[str, int], names: List[str]):
     else:
         return tuple(action[name] for name in names)
 
-
-def convert(elements: Union[Tuple, Dict[str, Any], Any], names: List[str]):
-    if isinstance(elements, tuple):
-        # Converting multiagent tuple -> dict
-        return {name: elements[i] for i, name in enumerate(names)}
-
-    elif isinstance(elements, dict):
-        # Converting dict -> tuple/single action; mostly for actions
-        if len(names) == 1:  # single agent
-            return elements[names[0]]
-        else:  # multi-agent
-            return tuple(elements[name] for name in names)
-
-    else:
-        # convert a single value -> dict of that value
-        return {name: elements for name in names} # TODO: fix type to float32

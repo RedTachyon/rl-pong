@@ -51,3 +51,11 @@ they can be saved (via pickle) along with the TensorBoard logs
 The training is automatically logged into TensorBoard as long as `tensorboard_name` is passed in the config.
 To view the training graphs, run `tensorboard --logdir ~/tb_logs --bind_all` and see them at `localhost:6006`
 in your browser. (alternatively, skip --bind_all and go to the url displayed in the terminal)
+
+### Compatibility
+
+The Pong codes represents the actions and observations as either raw values (single-agent) of tuples of values (multi-agent).
+To ensure compatibility, there's two convert methods in `utils.py` converting between representations.
+Right now, if there aren't any bugs, it's enough to include `"tuple_mode": True` in the trainer config
+and everything should work. The Pong representation is only used to directly interact 
+with the environment - otherwise, everything is kept in the dictionary form as described at the beginning of this document.
