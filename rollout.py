@@ -153,7 +153,8 @@ class Collector:
                      max_steps: int = 102,
                      reset_memory: bool = True,
                      include_last: bool = False,
-                     finish_episode: bool = True) -> DataBatch:
+                     finish_episode: bool = True,
+                     stack_size: int = 2) -> DataBatch:
         """
         Performs a rollout of the agents in the environment, for an indicated number of steps or episodes.
 
@@ -203,6 +204,8 @@ class Collector:
 
         # obs: Union[Tuple, Dict]
         obs = self.env.reset()
+        obs = np.hstack([obs] * stack_size)
+
 
         if self.tuple_mode:  # Convert obs to dict
             obs = convert_obs_to_dict(obs, self.agent_ids)
@@ -237,10 +240,15 @@ class Collector:
             else:
                 env_action = action
 
-            next_obs, reward, done, info = self.env.step(env_action)
+            # Stack frames
+            obs_stack = []
+            for i in range(stack_size):
+                next_obs, reward, done, info = self.env.step(env_action)
+                obs_stack.append(next_obs)
+            obs_stack = np.hstack(obs_stack)
 
             if self.tuple_mode:  # Convert outputs to dicts
-                next_obs = convert_obs_to_dict(next_obs, self.agent_ids)
+                next_obs = convert_obs_to_dict(obs_stack, self.agent_ids)
                 reward = convert_obs_to_dict(reward, self.agent_ids)
                 done = {agent_id: done for agent_id in self.agent_ids}
 
@@ -256,6 +264,8 @@ class Collector:
                 if include_last:  # record the last observation along with placeholder action/reward/logprob
                     self.memory.store(next_obs, action, reward, logprob, done, next_state)
                 obs = self.env.reset()
+                obs = np.hstack([obs] * stack_size)
+
                 if self.tuple_mode:
                     obs = convert_obs_to_dict(obs, self.agent_ids)
                 state = {

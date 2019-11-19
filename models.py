@@ -32,6 +32,7 @@ class MLPModel(BaseModel):
 
         default_config = {
             "input_size": 15,
+            "stack_size": 2,
             "num_actions": 5,
             "hidden_sizes": (64, 64),
             "activation": "leaky_relu",
@@ -39,11 +40,12 @@ class MLPModel(BaseModel):
         self.config = with_default_config(config, default_config)
 
         input_size: int = self.config.get("input_size")
+        stack_size: int = self.config.get("stack_size")
         num_actions: int = self.config.get("num_actions")
         hidden_sizes: Tuple[int] = self.config.get("hidden_sizes")
         self.activation: Callable = get_activation(self.config.get("activation"))
 
-        layer_sizes = (input_size, ) + hidden_sizes
+        layer_sizes = (input_size * stack_size, ) + hidden_sizes
 
         self.hidden_layers = nn.ModuleList([
             nn.Linear(in_size, out_size)

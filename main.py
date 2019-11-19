@@ -26,6 +26,7 @@ env = gym.make('WimblepongSimpleAI-v0')
 agent_config = {
     # SHARED
     "input_size": 6,
+    "stack_size": 2,
     "num_actions": 3,
     "activation": "leaky_relu",
 
