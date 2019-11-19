@@ -40,6 +40,7 @@ class PPOTrainer:
             # Trainer settings
             "agents_to_optimize": None,  # ids of agents that should be optimized
             "batch_size": 10000,  # Number of steps to sample at each iteration, TODO: make it possible to use epochs
+            "stack_size": 1,
             # Agent settings
             "optimizer": "adam",
             "optimizer_kwargs": {
@@ -224,7 +225,7 @@ class PPOTrainer:
         timer = Timer()
         for step in trange(starting_iteration, starting_iteration + num_iterations, disable=disable_tqdm):
             timer.checkpoint()
-            data_batch = self.collector.collect_data(num_steps=self.config["batch_size"])
+            data_batch = self.collector.collect_data(num_steps=self.config["batch_size"],  stack_size=self.config["stack_size"])
             data_time = timer.checkpoint()
             time_metric = {f"{agent_id}/time_data_collection": data_time for agent_id in self.agent_ids}
 

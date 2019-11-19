@@ -1,0 +1,7 @@
+NOTES FOR THE FINAL REPORT:
+
+Add framestacking for positional input as proof of concept:
+- concatenation
+- 1d conv over channels
+
+Test with 1,2 and 3 frames -> is acceleration helpful to know for the agent? --> 3 frames seem best for training.

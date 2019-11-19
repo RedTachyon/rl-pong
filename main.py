@@ -26,8 +26,8 @@ env = gym.make('WimblepongSimpleAI-v0')
 agent_config = {
     # SHARED
     "input_size": 6,
-    "stack_size": 2,
     "num_actions": 3,
+    "stack_size": 3,
     "activation": "leaky_relu",
 
     # MLP
@@ -50,7 +50,8 @@ trainer_config = {
     "batch_size": 1000,
     "value_loss_coeff": 1.,
     "ppo_steps": 50,
-    "tuple_mode": True
+    "tuple_mode": True,
+    "stack_size": 3
 }
 
 trainer = PPOTrainer(agents, env, config=trainer_config)
