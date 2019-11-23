@@ -6,7 +6,6 @@ from rollout import Collector
 from models import MLPModel, LSTMModel, RelationModel
 from agents import Agent
 from utils import discount_rewards_to_go
-from visualize import generate_video
 from trainers import PPOTrainer
 
 from envs import wimblepong
@@ -25,12 +24,12 @@ env = gym.make('WimblepongSimpleAI-v0')
 
 agent_config = {
     # SHARED
-    "input_size": 6,
+    "input_size": 12,  # 2-stacked obs
     "num_actions": 3,
     "activation": "leaky_relu",
 
     # MLP
-    "hidden_sizes": (64, 64),
+    "hidden_sizes": (16, 16, 16),
 
     # LSTM
     "pre_lstm_sizes": (32, ),
@@ -45,13 +44,15 @@ agents: Dict[str, Agent] = {
 }
 
 trainer_config = {
-    "tensorboard_name": "pong_test",
+    "tensorboard_name": "stacking_small_batch",
     "batch_size": 1000,
-    "value_loss_coeff": 1.,
-    "ppo_steps": 50,
-    "tuple_mode": True
+    "value_loss_coeff": .1,
+    "ppo_steps": 20,
+    "tuple_mode": True,
+    "target_kl": 0.02,
+    "entropy_coeff": 0.0,
 }
 
 trainer = PPOTrainer(agents, env, config=trainer_config)
 
-trainer.train(100)
+trainer.train(1000, finish_episode=True, divide_rewards=10)

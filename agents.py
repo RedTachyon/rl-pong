@@ -15,6 +15,8 @@ class Agent:
         self.stateful = model.stateful
         self.name = name
 
+        self.storage = {}
+
     def compute_actions(self, obs_batch: Tensor,
                         state_batch: Tuple = (),
                         deterministic: bool = False) -> Tuple[Tensor, Tensor, Tuple]:
@@ -115,11 +117,15 @@ class Agent:
     def get_initial_state(self):
         return self.model.get_initial_state()
 
+    def reset(self):
+        self.storage = {}
+
 
 if __name__ == '__main__':
-    mlp_agent = Agent(MLPModel({}), "MLPAgent")
-    lstm_agent = Agent(LSTMModel({}), "LSTMAgent")
-
-    env = foraging_env_creator({})
-    obs_ = env.reset()
-    obs_ = {k: torch.randn(3, 15) for k in obs_}
+    pass
+    # mlp_agent = Agent(MLPModel({}), "MLPAgent")
+    # lstm_agent = Agent(LSTMModel({}), "LSTMAgent")
+    #
+    # env = foraging_env_creator({})
+    # obs_ = env.reset()
+    # obs_ = {k: torch.randn(3, 15) for k in obs_}

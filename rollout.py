@@ -153,7 +153,9 @@ class Collector:
                      max_steps: int = 102,
                      reset_memory: bool = True,
                      include_last: bool = False,
-                     finish_episode: bool = True) -> DataBatch:
+                     finish_episode: bool = True,
+                     divide_rewards: Optional[int] = None,
+                     stack_frames: bool = True) -> DataBatch:
         """
         Performs a rollout of the agents in the environment, for an indicated number of steps or episodes.
 
@@ -213,13 +215,21 @@ class Collector:
 
         episode = 0
 
+        for agent_id, agent in self.agents.items():
+            agent.storage["last_obs"] = obs[agent_id]
+
         end_flag = False
         full_steps = (num_steps + 100 * int(finish_episode)) if num_steps else max_steps * num_episodes
         for step in trange(full_steps, disable=disable_tqdm):
             # Compute the action for each agent
+
+            stacked_obs = {}
+            for agent_id, agent in self.agents.items():
+                stacked_obs[agent_id] = np.concatenate([obs[agent_id], agent.storage.get("last_obs")], axis=-1)
+
             # breakpoint()
             action_info = {  # action, logprob, state
-                agent_id: self.agents[agent_id].compute_single_action(obs[agent_id],
+                agent_id: self.agents[agent_id].compute_single_action(stacked_obs[agent_id],
                                                                       state[agent_id],
                                                                       deterministic[agent_id])
                 for agent_id in self.agent_ids
@@ -244,8 +254,15 @@ class Collector:
                 reward = convert_obs_to_dict(reward, self.agent_ids)
                 done = {agent_id: done for agent_id in self.agent_ids}
 
+            if divide_rewards:
+                reward = {key: rew / divide_rewards for key, rew in reward.items()}
+
             # Saving to memory
-            self.memory.store(obs, action, reward, logprob, done, state)
+            self.memory.store(stacked_obs, action, reward, logprob, done, state)
+
+            # Frame stacking
+            for agent_id, agent in self.agents.items():
+                agent.storage["last_obs"] = obs[agent_id]
 
             # Handle episode/loop ending
             if finish_episode and step + 1 == num_steps:
@@ -254,10 +271,15 @@ class Collector:
             # Update the current obs and state - either reset, or keep going
             if all(done.values()):  # episode is over
                 if include_last:  # record the last observation along with placeholder action/reward/logprob
-                    self.memory.store(next_obs, action, reward, logprob, done, next_state)
+                    self.memory.store(next_obs, action, reward, logprob, done, next_state)  # TODO: fix this with stacking
                 obs = self.env.reset()
                 if self.tuple_mode:
                     obs = convert_obs_to_dict(obs, self.agent_ids)
+
+                # Frame stacking
+                for agent_id, agent in self.agents.items():
+                    agent.storage["last_obs"] = obs[agent_id]
+
                 state = {
                     agent_id: self.agents[agent_id].get_initial_state() for agent_id in self.agent_ids
                 }
@@ -271,6 +293,7 @@ class Collector:
             else:  # keep going
                 obs = next_obs
                 state = next_state
+
 
         return self.memory.get_torch_data()
 

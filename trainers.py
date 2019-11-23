@@ -62,7 +62,7 @@ class PPOTrainer:
             "tensorboard_name": "test",
 
             # Compatibility
-            "tuple_mode": False
+            "tuple_mode": False,
 
         }
         self.config = with_default_config(config, default_config)
@@ -102,7 +102,9 @@ class PPOTrainer:
         else:
             self.writer = None
 
-        self.collector = Collector(agents=self.agents, env=self.env, tuple_mode=self.config["tuple_mode"])
+        self.collector = Collector(agents=self.agents,
+                                   env=self.env,
+                                   tuple_mode=self.config["tuple_mode"])
 
     def train_on_data(self, data_batch: DataBatch,
                       step: int = 0,
@@ -219,12 +221,16 @@ class PPOTrainer:
 
     def train(self, num_iterations: int,
               starting_iteration: int = 0,
-              disable_tqdm: bool = False):
+              disable_tqdm: bool = False,
+              finish_episode: bool = False,
+              divide_rewards: Optional[int] = None):
 
         timer = Timer()
         for step in trange(starting_iteration, starting_iteration + num_iterations, disable=disable_tqdm):
             timer.checkpoint()
-            data_batch = self.collector.collect_data(num_steps=self.config["batch_size"])
+            data_batch = self.collector.collect_data(num_steps=self.config["batch_size"],
+                                                     finish_episode=finish_episode,
+                                                     divide_rewards=divide_rewards)
             data_time = timer.checkpoint()
             time_metric = {f"{agent_id}/time_data_collection": data_time for agent_id in self.agent_ids}
 
