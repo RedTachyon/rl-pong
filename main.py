@@ -29,7 +29,7 @@ agent_config = {
     "activation": "leaky_relu",
 
     # MLP
-    "hidden_sizes": (16, 16, 16),
+    "hidden_sizes": (64, ) * 7,
 
     # LSTM
     "pre_lstm_sizes": (32, ),
@@ -44,15 +44,15 @@ agents: Dict[str, Agent] = {
 }
 
 trainer_config = {
-    "tensorboard_name": "stacking_small_batch",
-    "batch_size": 1000,
-    "value_loss_coeff": .1,
-    "ppo_steps": 20,
+    "tensorboard_name": "stacking",
+    "batch_size": 2000,
+    "value_loss_coeff": .01,
+    "ppo_steps": 50,
     "tuple_mode": True,
     "target_kl": 0.02,
-    "entropy_coeff": 0.0,
+    "entropy_coeff": 0.001,
 }
 
 trainer = PPOTrainer(agents, env, config=trainer_config)
 
-trainer.train(1000, finish_episode=True, divide_rewards=10)
+trainer.train(10000, finish_episode=True, divide_rewards=10)

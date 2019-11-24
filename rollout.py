@@ -255,7 +255,7 @@ class Collector:
                 done = {agent_id: done for agent_id in self.agent_ids}
 
             if divide_rewards:
-                reward = {key: rew / divide_rewards for key, rew in reward.items()}
+                reward = {key: (rew / divide_rewards) for key, rew in reward.items()}
 
             # Saving to memory
             self.memory.store(stacked_obs, action, reward, logprob, done, state)
