@@ -4,16 +4,17 @@ import torch
 from torch import nn, Tensor
 from torch.distributions import Distribution, Categorical
 
-from models import BaseModel, MLPModel, LSTMModel
+from models import BaseModel, MLPModel, LSTMModel, CNNMLPModel
 
-from typing import Tuple, Union, List
+from typing import Dict, Tuple, Union, List
 
 
 class Agent:
-    def __init__(self, model: BaseModel, name: str):
+    def __init__(self, model: BaseModel, name: str, config: Dict):
         self.model = model
         self.stateful = model.stateful
         self.name = name
+        self.config = config
 
     def compute_actions(self, obs_batch: Tensor,
                         state_batch: Tuple = (),
@@ -31,6 +32,7 @@ class Agent:
         """
         action_distribution: Categorical
         states: Tuple
+
         action_distribution, _, states = self.model(obs_batch, state_batch)
         if deterministic:
             actions = torch.argmax(action_distribution.probs, dim=-1)
@@ -55,7 +57,8 @@ class Agent:
         Returns:
             action, logprob of the action, new state vectors
         """
-        if len(obs.shape) == 1:
+
+        if len(obs.shape) <= (len(self.config.get('input_size')) + 1):
             obs = torch.tensor([obs])
 
         action, logprob, new_state = self.compute_actions(obs, state, deterministic)

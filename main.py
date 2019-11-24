@@ -3,7 +3,7 @@ import numpy as np
 import gym
 
 from rollout import Collector
-from models import MLPModel, LSTMModel, RelationModel
+from models import MLPModel, LSTMModel, RelationModel, CNNMLPModel
 from agents import Agent
 from utils import discount_rewards_to_go
 from visualize import generate_video
@@ -21,17 +21,17 @@ from tqdm import trange
 
 import time
 
-env = gym.make('WimblepongSimpleAI-v0')
+env = gym.make('WimblepongVisualSimpleAI-v0')
 
 agent_config = {
     # SHARED
-    "input_size": 6,
+    "input_size": (100, 100), #downsampled from 200 (the env crops the image by default)
     "num_actions": 3,
     "stack_size": 3,
     "activation": "leaky_relu",
 
     # MLP
-    "hidden_sizes": (64, 64),
+    "hidden_sizes": (256, ),
 
     # LSTM
     "pre_lstm_sizes": (32, ),
@@ -41,7 +41,7 @@ agent_config = {
 
 agent_ids = ["Agent0"]#, "Agent1"]
 agents: Dict[str, Agent] = {
-    agent_id: Agent(MLPModel(agent_config), name=agent_id)
+    agent_id: Agent(CNNMLPModel(agent_config), name=agent_id, config=agent_config)
     for agent_id in agent_ids
 }
 

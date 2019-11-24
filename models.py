@@ -1,5 +1,7 @@
 from typing import Dict, Tuple, Callable, Iterable
 
+import numpy as np
+
 import torch
 from torch import nn, Tensor
 from torch.distributions import Distribution, Categorical
@@ -12,8 +14,14 @@ from utils import with_default_config, get_activation
 class BaseModel(nn.Module):
     def __init__(self, config: Dict):
         super().__init__()
+
+        default_config = {
+            "img_value_range": 255
+        }
+
         self._stateful = False
         self.config = config
+        self.value_range = default_config.get("img_value_range")
 
     def forward(self, x: Tensor, state: Tuple) -> Tuple[Distribution, Tensor, Tuple[Tensor, Tensor]]:
         raise NotImplementedError
@@ -36,6 +44,7 @@ class MLPModel(BaseModel):
             "num_actions": 5,
             "hidden_sizes": (64, 64),
             "activation": "leaky_relu",
+            "img_value_range": 255
         }
         self.config = with_default_config(config, default_config)
 
@@ -178,6 +187,79 @@ class LSTMModel(BaseModel):
         return torch.zeros(1, self.config['lstm_nodes'], requires_grad=True), \
                torch.zeros(1, self.config['lstm_nodes'], requires_grad=True)
 
+
+
+class CNNMLPModel(BaseModel):
+    def __init__(self, config: Dict):
+        super().__init__(config)
+
+        default_config = {
+            "input_size": (210, 160),
+            "stack_size": 3,
+            "num_actions": 5,
+            "hidden_sizes": (64, 64),
+            "activation": "leaky_relu",
+        }
+        self.config = with_default_config(config, default_config)
+
+        input_size: int = self.config.get("input_size")
+        stack_size: int = self.config.get("stack_size")
+        num_actions: int = self.config.get("num_actions")
+        hidden_sizes: Tuple[int] = self.config.get("hidden_sizes")
+        self.activation: Callable = get_activation(self.config.get("activation"))
+
+        self.conv_layers = nn.ModuleList([
+            nn.Conv2d(in_channels=stack_size, out_channels=32, kernel_size=8, stride=4),
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2),
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1)
+        ])
+
+        conv_out_size = self._get_conv_out([stack_size, *input_size])
+        layer_sizes = (conv_out_size, ) + hidden_sizes
+
+
+        self.hidden_layers = nn.ModuleList([
+            nn.Linear(in_size, out_size)
+            for in_size, out_size in zip(layer_sizes, layer_sizes[1:])
+        ])
+
+        self.policy_head = nn.Linear(layer_sizes[-1], num_actions)
+        self.value_head = nn.Linear(layer_sizes[-1], 1)
+
+
+    def _get_conv_out(self, shape):
+        x = torch.zeros(1, *shape)
+        for layer in self.conv_layers:
+            x = layer(x)
+            x = self.activation(x)
+
+        return int(np.prod(x.size()))
+
+    def forward(self, x: Tensor, state: Tuple = ()) -> Tuple[Distribution, Tensor, Tuple[Tensor, Tensor]]:
+        # noinspection PyTypeChecker
+
+        # normalize and cast to float
+        x = x.float() / self.value_range
+
+        for layer in self.conv_layers:
+            x = layer(x)
+            x = self.activation(x)
+
+        x = x.flatten(1, -1)
+
+        for layer in self.hidden_layers:
+            x = layer(x)
+            x = self.activation(x)
+
+        action_logits = self.policy_head(x)
+        value = self.value_head(x)
+
+        action_distribution = Categorical(logits=action_logits)
+
+        return action_distribution, value, state
+
+    def get_initial_state(self):
+        return ()
 
 if __name__ == '__main__':
     policy = LSTMModel({})

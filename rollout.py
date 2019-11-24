@@ -9,7 +9,7 @@ from envs import MultiAgentEnv
 import torch
 from torch import Tensor
 
-from utils import append_dict, DataBatch, convert_obs_to_dict, convert_action_to_env
+from utils import append_dict, DataBatch, convert_obs_to_dict, convert_reward_to_dict, convert_action_to_env, preprocess, stack_obs
 
 from tqdm import trange
 
@@ -204,8 +204,7 @@ class Collector:
 
         # obs: Union[Tuple, Dict]
         obs = self.env.reset()
-        obs = np.hstack([obs] * stack_size)
-
+        obs = np.stack([preprocess(obs)]*stack_size)
 
         if self.tuple_mode:  # Convert obs to dict
             obs = convert_obs_to_dict(obs, self.agent_ids)
@@ -219,6 +218,8 @@ class Collector:
         end_flag = False
         full_steps = (num_steps + 100 * int(finish_episode)) if num_steps else max_steps * num_episodes
         for step in trange(full_steps, disable=disable_tqdm):
+
+
             # Compute the action for each agent
             # breakpoint()
             action_info = {  # action, logprob, state
@@ -241,15 +242,15 @@ class Collector:
                 env_action = action
 
             # Stack frames
-            obs_stack = []
-            for i in range(stack_size):
-                next_obs, reward, done, info = self.env.step(env_action)
-                obs_stack.append(next_obs)
-            obs_stack = np.hstack(obs_stack)
+            next_obs, reward, done, info = self.env.step(env_action)
+            next_obs = {agent_id: stack_obs(obs[agent_id], next_obs) for agent_id in self.agent_ids}
+
+            # Decaying reward for staying alive
+            reward += 1/(step+1)
 
             if self.tuple_mode:  # Convert outputs to dicts
-                next_obs = convert_obs_to_dict(obs_stack, self.agent_ids)
-                reward = convert_obs_to_dict(reward, self.agent_ids)
+                #next_obs = convert_obs_to_dict(obs_stack, self.agent_ids)
+                reward = convert_reward_to_dict(reward, self.agent_ids)
                 done = {agent_id: done for agent_id in self.agent_ids}
 
             # Saving to memory
@@ -264,7 +265,7 @@ class Collector:
                 if include_last:  # record the last observation along with placeholder action/reward/logprob
                     self.memory.store(next_obs, action, reward, logprob, done, next_state)
                 obs = self.env.reset()
-                obs = np.hstack([obs] * stack_size)
+                obs = np.stack([preprocess(obs)] * stack_size)
 
                 if self.tuple_mode:
                     obs = convert_obs_to_dict(obs, self.agent_ids)

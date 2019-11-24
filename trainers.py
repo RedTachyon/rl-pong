@@ -200,14 +200,15 @@ class PPOTrainer:
 
             ### Add new training-based metrics here ###
             metrics[f"{agent_id}/episode_len_mean"]      = torch.mean(ep_lens_tensor.float()).item()
-            metrics[f"{agent_id}/episode_reward_mean"]   = torch.mean(ep_rewards).item()
+            metrics[f"{agent_id}/episode_reward_mean"]   = torch.mean(ep_rewards.float()).item()
             metrics[f"{agent_id}/episode_reward_median"] = torch.median(ep_rewards).item()
             metrics[f"{agent_id}/episode_reward_min"]    = torch.min(ep_rewards).item()
             metrics[f"{agent_id}/episode_reward_max"]    = torch.max(ep_rewards).item()
-            metrics[f"{agent_id}/episode_reward_std"]    = torch.std(ep_rewards).item()
+            metrics[f"{agent_id}/episode_reward_std"]    = torch.std(ep_rewards.float()).item()
             metrics[f"{agent_id}/episodes_this_iter"]    = len(ep_ids)
             metrics[f"{agent_id}/mean_entropy"]          = torch.mean(entropy_batch).item()
 
+            print(metrics[f"{agent_id}/episode_reward_mean"])
             if extra_metrics is not None:
                 metrics = with_default_config(metrics, extra_metrics)  # add extra_metrics if not computed here
             self.write_dict(metrics, step)

@@ -56,7 +56,8 @@ def discount_rewards_to_go(rewards: Tensor, dones: Tensor, gamma: float = 1.) ->
     """
     Computes the discounted rewards to go, handling episode endings. Nothing unusual.
     """
-    dones = dones.to(torch.int32)  # Torch can't handle reversing boolean tensors
+    dones = dones.to(torch.int8)  # Torch can't handle reversing boolean tensors
+    rewards = rewards.float()
     current_reward = 0
     discounted_rewards = []
     for reward, done in zip(rewards.flip(0), dones.flip(0)):
@@ -115,11 +116,21 @@ class Timer:
 
 
 def convert_obs_to_dict(obs: Union[Tuple, np.ndarray], names: List[str]) -> Dict[str, np.ndarray]:
+    obs = obs.astype(np.int8)
     if isinstance(obs, tuple):
         return {name: obs[i] for i, name in enumerate(names)}
     else:
         obs: np.ndarray
-        return {names[0]: np.float32(obs)}
+        return {names[0]: np.int8(obs)}
+
+
+def convert_reward_to_dict(reward: Union[Tuple, np.ndarray], names: List[str]) -> Dict[str, np.ndarray]:
+    reward = np.int8(reward)
+    if isinstance(reward, tuple):
+        return {name: reward[i] for i, name in enumerate(names)}
+    else:
+        reward: np.ndarray
+        return {names[0]: np.float32(reward)}
 
 
 def convert_action_to_env(action: Dict[str, int], names: List[str]):
@@ -128,3 +139,16 @@ def convert_action_to_env(action: Dict[str, int], names: List[str]):
     else:
         return tuple(action[name] for name in names)
 
+
+def preprocess(img):
+    img = img[::2, ::2, 0]  # just use red channel
+    img[img == 43] = 0  # erase background
+    img[img != 0] = 1  # set else to 1
+    return img.astype(np.int8)
+
+
+def stack_obs(obs, next_obs):
+    obs[0,:,:] = obs[1,:,:]
+    obs[1,:,:] = obs[2,:,:]
+    obs[2,:,:] = preprocess(next_obs)
+    return obs
