@@ -138,7 +138,7 @@ class PPOTrainer:
             # state_batch = data_batch['states'][agent_id]  # unused
             # breakpoint()
 
-            logprob_batch, value_batch, entropy_batch = agent.evaluate_actions(obs_batch, action_batch, done_batch)
+            logprob_batch, value_batch, entropy_batch = agent.evaluate_actions(obs_batch, action_batch)
 
             discounted_batch = discount_rewards_to_go(reward_batch, done_batch, self.gamma)
             advantages_batch = (discounted_batch - value_batch.view(-1)).detach()
@@ -152,7 +152,7 @@ class PPOTrainer:
             loss = torch.tensor(0)
             timer.checkpoint()
             for ppo_step in range(self.config["ppo_steps"]):
-                logprob_batch, value_batch, entropy_batch = agent.evaluate_actions(obs_batch, action_batch, done_batch)
+                logprob_batch, value_batch, entropy_batch = agent.evaluate_actions(obs_batch, action_batch)
 
                 ######################################### Compute the loss #############################################
                 prob_ratio = torch.exp(logprob_batch - old_logprobs_batch)
@@ -226,6 +226,7 @@ class PPOTrainer:
               divide_rewards: Optional[int] = None):
 
         timer = Timer()
+        step_timer = Timer()
         for step in trange(starting_iteration, starting_iteration + num_iterations, disable=disable_tqdm):
             timer.checkpoint()
             data_batch = self.collector.collect_data(num_steps=self.config["batch_size"],
@@ -235,6 +236,8 @@ class PPOTrainer:
             time_metric = {f"{agent_id}/time_data_collection": data_time for agent_id in self.agent_ids}
 
             self.train_on_data(data_batch, step, extra_metrics=time_metric, timer=timer)
+            total_time = step_timer.checkpoint()
+            self.write_dict({f"{agent_id}/time_total": total_time for agent_id in self.agent_ids}, step)
 
 
 if __name__ == '__main__':

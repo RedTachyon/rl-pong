@@ -26,15 +26,10 @@ agent_config = {
     # SHARED
     "input_size": 12,  # 2-stacked obs
     "num_actions": 3,
-    "activation": "leaky_relu",
+    "activation": "relu",
 
     # MLP
     "hidden_sizes": (64, ) * 7,
-
-    # LSTM
-    "pre_lstm_sizes": (32, ),
-    "lstm_nodes": 32,
-    "post_lstm_sizes": (32, ),
 }
 
 agent_ids = ["Agent0"]#, "Agent1"]
@@ -43,15 +38,36 @@ agents: Dict[str, Agent] = {
     for agent_id in agent_ids
 }
 
+
 trainer_config = {
-    "tensorboard_name": "stacking",
-    "batch_size": 2000,
-    "value_loss_coeff": .01,
-    "ppo_steps": 50,
-    "tuple_mode": True,
-    "target_kl": 0.02,
-    "entropy_coeff": 0.001,
-}
+        # Trainer settings
+        "agents_to_optimize": None,  # ids of agents that should be optimized
+        "batch_size": 2000,
+        # Agent settings
+        "optimizer": "adam",
+        "optimizer_kwargs": {
+            "lr": 1e-4,
+            "betas": (0.9, 0.999),
+            "eps": 1e-7,
+            "weight_decay": 0,
+            "amsgrad": False
+        },
+        "gamma": 0.95,  # Discount factor
+
+        # PPO settings
+        "ppo_steps": 25,
+        "eps": 0.1,  # PPO clip parameter
+        "target_kl": 0.01,  # KL divergence limit
+        "value_loss_coeff": 0.01,
+        "entropy_coeff": 0.001,
+
+        # Tensorboard settings
+        "tensorboard_name": "relu",
+
+        # Compatibility
+        "tuple_mode": True,
+
+        }
 
 trainer = PPOTrainer(agents, env, config=trainer_config)
 
