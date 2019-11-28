@@ -43,7 +43,7 @@ class MLPModel(BaseModel):
         hidden_sizes: Tuple[int] = self.config.get("hidden_sizes")
         self.activation: Callable = get_activation(self.config.get("activation"))
 
-        layer_sizes = (input_size, ) + hidden_sizes
+        layer_sizes = (input_size,) + hidden_sizes
 
         self.hidden_layers = nn.ModuleList([
             nn.Linear(in_size, out_size)
@@ -77,10 +77,52 @@ class CoordConvModel(BaseModel):
 
         default_config = {
             "input_shape": (100, 100),
+            "num_actions": 5,
+            "activation": "relu",
+
 
         }
+        self.config = with_default_config(config, default_config)
+        self.activation = get_activation(self.config["activation"])
 
-        self.conv1 = nn.Conv2d()
+        input_shape: Tuple[int, int] = self.config["input_shape"]
+
+        self.conv_layers = nn.ModuleList([nn.Conv2d(4, 32, kernel_size=3, stride=2),  # 24x24x32
+                                          nn.Conv2d(32, 32, kernel_size=3, stride=2),  # 6x6x64
+                                          nn.Conv2d(32, 32, kernel_size=3, stride=1)])  # 4x4x64
+
+        _coords_i = torch.linspace(-1, 1, input_shape[0]).view(-1, 1).repeat(1, input_shape[1])
+        _coords_j = torch.linspace(-1, 1, input_shape[1]).view(1, -1).repeat(input_shape[0], 1)
+        self.coords = torch.stack([_coords_i, _coords_j])
+
+        # flatten
+        self.mlp_layers = nn.ModuleList([nn.Linear()])
+
+        self.policy_head = nn.Linear(4*4*64, self.config["num_actions"])
+        self.value_head = nn.Linear(4*4*64, 1)
+
+    def forward(self, x: Tensor, state: Tuple = ()):
+        batch_size = x.shape[0]
+        batch_coords = torch.stack([self.coords for _ in range(batch_size)], dim=0)
+        # breakpoint()
+        x = torch.cat([x, batch_coords], dim=1)
+        # noinspection PyTypeChecker
+        for layer in self.conv_layers:
+            x = layer(x)
+            x = self.activation(x)
+
+        x = x.flatten(1, -1)
+
+        action_logits = self.policy_head(x)
+        value = self.value_head(x)
+
+        action_distribution = Categorical(logits=action_logits)
+
+        return action_distribution, value, state
+
+    def get_initial_state(self):
+        return ()
+
 
 class LSTMModel(BaseModel):
     def __init__(self, config: Dict):
@@ -91,9 +133,9 @@ class LSTMModel(BaseModel):
         default_config = {
             "input_size": 15,
             "num_actions": 5,
-            "pre_lstm_sizes": (32, ),
+            "pre_lstm_sizes": (32,),
             "lstm_nodes": 32,
-            "post_lstm_sizes": (32, ),
+            "post_lstm_sizes": (32,),
             "activation": "leaky_relu"
         }
         self.config = with_default_config(config, default_config)
@@ -107,7 +149,7 @@ class LSTMModel(BaseModel):
         self.activation: Callable = get_activation(self.config.get("activation"))
 
         pre_layers = (input_size,) + pre_lstm_sizes
-        post_layers = (lstm_nodes, ) + post_lstm_sizes
+        post_layers = (lstm_nodes,) + post_lstm_sizes
 
         self.preprocess_layers = nn.ModuleList([
             nn.Linear(in_size, out_size)

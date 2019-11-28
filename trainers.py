@@ -64,6 +64,9 @@ class PPOTrainer:
             # Compatibility
             "tuple_mode": False,
 
+            # GPU
+            "use_gpu": False,
+
         }
         self.config = with_default_config(config, default_config)
         self.agents_to_optimize: List[str] = self.agent_ids if self.config['agents_to_optimize'] is None \
@@ -86,14 +89,14 @@ class PPOTrainer:
             self.writer = SummaryWriter(str(self.path))
 
             # Log the configs
-            with open(str(self.path/"trainer_config.pkl"), "wb") as f:
+            with open(str(self.path / "trainer_config.pkl"), "wb") as f:
                 pickle.dump(self.config, f)
 
             for agent_id in self.agent_ids:
-                with open(str(self.path/f"{agent_id}_config.pkl"), "wb") as f:
+                with open(str(self.path / f"{agent_id}_config.pkl"), "wb") as f:
                     pickle.dump(self.agents[agent_id].model.config, f)
 
-            with open(str(self.path/"env_config.pkl"), "wb") as f:
+            with open(str(self.path / "env_config.pkl"), "wb") as f:
                 try:
                     env_config = self.env.config
                     pickle.dump(env_config, f)
@@ -135,12 +138,19 @@ class PPOTrainer:
             reward_batch = data_batch['rewards'][agent_id]
             old_logprobs_batch = data_batch['logprobs'][agent_id]
             done_batch = data_batch['dones'][agent_id]
-            # state_batch = data_batch['states'][agent_id]  # unused
-            # breakpoint()
+
+            if self.config["use_gpu"]:
+                obs_batch = obs_batch.cuda()
+                action_batch = action_batch.cuda()
+                agent.model.cuda()
 
             logprob_batch, value_batch, entropy_batch = agent.evaluate_actions(obs_batch, action_batch)
 
             discounted_batch = discount_rewards_to_go(reward_batch, done_batch, self.gamma)
+
+            if self.config["use_gpu"]:
+                discounted_batch = discounted_batch.cuda()
+
             advantages_batch = (discounted_batch - value_batch.view(-1)).detach()
             advantages_batch = (advantages_batch - advantages_batch.mean()) / (advantages_batch.std() + 1e-6)
 
@@ -162,7 +172,7 @@ class PPOTrainer:
                 kl_divergence = torch.mean(old_logprobs_batch - logprob_batch).item()  # review formula?
 
                 policy_loss = -torch.min(surr1, surr2)
-                value_loss = (value_batch.view(-1) - discounted_batch)**2
+                value_loss = (value_batch.view(-1) - discounted_batch) ** 2
 
                 loss_batch = (policy_loss.mean()
                               + self.config["value_loss_coeff"] * value_loss.mean()
@@ -179,6 +189,9 @@ class PPOTrainer:
                 ### Early stopping ###
                 if kl_divergence > self.config["target_kl"]:
                     break
+
+            if self.config["use_gpu"]:
+                agent.model.cpu()
 
             metrics[f"{agent_id}/time_update"] = timer.checkpoint()
             metrics[f"{agent_id}/kl_divergence"] = kl_divergence
@@ -200,14 +213,14 @@ class PPOTrainer:
             ep_rewards = torch.tensor([torch.sum(rewards) for rewards in torch.split(reward_batch, ep_lens)])
 
             ### Add new training-based metrics here ###
-            metrics[f"{agent_id}/episode_len_mean"]      = torch.mean(ep_lens_tensor.float()).item()
-            metrics[f"{agent_id}/episode_reward_mean"]   = torch.mean(ep_rewards).item()
+            metrics[f"{agent_id}/episode_len_mean"] = torch.mean(ep_lens_tensor.float()).item()
+            metrics[f"{agent_id}/episode_reward_mean"] = torch.mean(ep_rewards).item()
             metrics[f"{agent_id}/episode_reward_median"] = torch.median(ep_rewards).item()
-            metrics[f"{agent_id}/episode_reward_min"]    = torch.min(ep_rewards).item()
-            metrics[f"{agent_id}/episode_reward_max"]    = torch.max(ep_rewards).item()
-            metrics[f"{agent_id}/episode_reward_std"]    = torch.std(ep_rewards).item()
-            metrics[f"{agent_id}/episodes_this_iter"]    = len(ep_ids)
-            metrics[f"{agent_id}/mean_entropy"]          = torch.mean(entropy_batch).item()
+            metrics[f"{agent_id}/episode_reward_min"] = torch.min(ep_rewards).item()
+            metrics[f"{agent_id}/episode_reward_max"] = torch.max(ep_rewards).item()
+            metrics[f"{agent_id}/episode_reward_std"] = torch.std(ep_rewards).item()
+            metrics[f"{agent_id}/episodes_this_iter"] = len(ep_ids)
+            metrics[f"{agent_id}/mean_entropy"] = torch.mean(entropy_batch).item()
 
             if extra_metrics is not None:
                 metrics = with_default_config(metrics, extra_metrics)  # add extra_metrics if not computed here
