@@ -142,6 +142,7 @@ class PPOTrainer:
             if self.config["use_gpu"]:
                 obs_batch = obs_batch.cuda()
                 action_batch = action_batch.cuda()
+                old_logprobs_batch = old_logprobs_batch.cuda()
                 agent.model.cuda()
 
             logprob_batch, value_batch, entropy_batch = agent.evaluate_actions(obs_batch, action_batch)
