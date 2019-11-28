@@ -96,7 +96,7 @@ class CoordConvModel(BaseModel):
         self.coords = torch.stack([_coords_i, _coords_j])
 
         # flatten
-        self.mlp_layers = nn.ModuleList([nn.Linear()])
+        # self.mlp_layers = nn.ModuleList([nn.Linear()])
 
         self.policy_head = nn.Linear(4*4*64, self.config["num_actions"])
         self.value_head = nn.Linear(4*4*64, 1)
