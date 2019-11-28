@@ -79,6 +79,7 @@ class CoordConvModel(BaseModel):
             "input_shape": (100, 100),
             "num_actions": 5,
             "activation": "relu",
+            "use_gpu": True
 
 
         }
@@ -87,16 +88,16 @@ class CoordConvModel(BaseModel):
 
         input_shape: Tuple[int, int] = self.config["input_shape"]
 
-        self.conv_layers = nn.ModuleList([nn.Conv2d(4, 32, kernel_size=3, stride=2),  # 24x24x32
-                                          nn.Conv2d(32, 32, kernel_size=3, stride=2),  # 6x6x64
-                                          nn.Conv2d(32, 32, kernel_size=3, stride=1)])  # 4x4x64
+        self.conv_layers = nn.ModuleList([nn.Conv2d(4, 32, kernel_size=8, stride=4),  # 24x24x32
+                                          nn.Conv2d(32, 64, kernel_size=7, stride=3),  # 6x6x64
+                                          nn.Conv2d(64, 64, kernel_size=3, stride=1)])  # 4x4x64
 
         _coords_i = torch.linspace(-1, 1, input_shape[0]).view(-1, 1).repeat(1, input_shape[1])
         _coords_j = torch.linspace(-1, 1, input_shape[1]).view(1, -1).repeat(input_shape[0], 1)
         self.coords = torch.stack([_coords_i, _coords_j])
 
-        # flatten
-        # self.mlp_layers = nn.ModuleList([nn.Linear()])
+        if self.config["use_gpu"]:
+            self.coords = self.coords.cuda()
 
         self.policy_head = nn.Linear(4*4*64, self.config["num_actions"])
         self.value_head = nn.Linear(4*4*64, 1)
