@@ -79,7 +79,6 @@ class CoordConvModel(BaseModel):
             "input_shape": (100, 100),
             "num_actions": 5,
             "activation": "relu",
-            "use_gpu": True
 
 
         }
@@ -96,8 +95,7 @@ class CoordConvModel(BaseModel):
         _coords_j = torch.linspace(-1, 1, input_shape[1]).view(1, -1).repeat(input_shape[0], 1)
         self.coords = torch.stack([_coords_i, _coords_j])
 
-        if self.config["use_gpu"]:
-            self.coords = self.coords.cuda()
+        # flatten
 
         self.policy_head = nn.Linear(4*4*64, self.config["num_actions"])
         self.value_head = nn.Linear(4*4*64, 1)
@@ -105,6 +103,7 @@ class CoordConvModel(BaseModel):
     def forward(self, x: Tensor, state: Tuple = ()):
         batch_size = x.shape[0]
         batch_coords = torch.stack([self.coords for _ in range(batch_size)], dim=0)
+        batch_coords = batch_coords.to(x.device.type)
         # breakpoint()
         x = torch.cat([x, batch_coords], dim=1)
         # noinspection PyTypeChecker
