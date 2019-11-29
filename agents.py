@@ -4,7 +4,7 @@ import torch
 from torch import nn, Tensor
 from torch.distributions import Distribution, Categorical
 
-from models import BaseModel, MLPModel, LSTMModel
+from models import BaseModel, MLPModel
 
 from typing import Tuple, Union, List
 
@@ -12,28 +12,24 @@ from typing import Tuple, Union, List
 class Agent:
     def __init__(self, model: BaseModel, name: str):
         self.model = model
-        self.stateful = model.stateful
         self.name = name
 
         self.storage = {}
 
     def compute_actions(self, obs_batch: Tensor,
-                        state_batch: Tuple = (),
-                        deterministic: bool = False) -> Tuple[Tensor, Tensor, Tuple]:
+                        deterministic: bool = False) -> Tuple[Tensor, Tensor]:
         """
         Computes the action for a batch of observations with given hidden states. Breaks gradients.
 
         Args:
             obs_batch: observation array in shape either (batch_size, obs_size)
-            state_batch: tuple of state tensors of shape (batch_size, lstm_nodes)
             deterministic: boolean, whether to always take the best action
 
         Returns:
             action, logprob of the action, new state vectors
         """
         action_distribution: Categorical
-        states: Tuple
-        action_distribution, _, states = self.model(obs_batch, state_batch)
+        action_distribution, _ = self.model(obs_batch)
         if deterministic:
             actions = torch.argmax(action_distribution.probs, dim=-1)
         else:
@@ -41,11 +37,10 @@ class Agent:
 
         logprobs = action_distribution.log_prob(actions)
 
-        return actions, logprobs, states
+        return actions, logprobs
 
-    def compute_single_action(self, obs: np.ndarray,  # TODO: consider returning the entropy here as well for metrics?
-                              state: Tuple = (),
-                              deterministic: bool = False) -> Tuple[int, float, Tuple]:
+    def compute_single_action(self, obs: np.ndarray,
+                              deterministic: bool = False) -> Tuple[int, float]:
         """
         Computes the action for a single observation with the given hidden state. Breaks gradients.
 
@@ -59,9 +54,9 @@ class Agent:
         """
         obs = torch.tensor([obs])
 
-        action, logprob, new_state = self.compute_actions(obs, state, deterministic)
+        action, logprob = self.compute_actions(obs, deterministic)
 
-        return action.item(), logprob.item(), new_state
+        return action.item(), logprob.item()
 
     def evaluate_actions(self, obs_batch: Tensor,
                          action_batch: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
@@ -79,10 +74,8 @@ class Agent:
             values: tensor of observation values (batch_size, )
             entropies: tensor of entropy values (batch_size, )
         """
-        state = self.get_initial_state()
 
-
-        action_distribution, values, new_states = self.model(obs_batch, state)
+        action_distribution, values = self.model(obs_batch)
         action_logprobs = action_distribution.log_prob(action_batch)
         entropies = action_distribution.entropy()
 
