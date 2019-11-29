@@ -28,7 +28,7 @@ env = gym.make('WimblepongVisualSimpleAI-v0')
 agent_config = {
     # SHARED
 
-    "input_size": 20000,  # 2-stacked obs
+    "input_size": 1200,  # 2-stacked obs
     "num_actions": 3,
     "activation": "relu",
 
@@ -38,7 +38,8 @@ agent_config = {
 
 agent_ids = ["Agent0"]#, "Agent1"]
 agents: Dict[str, Agent] = {
-    agent_id: Agent(CoordConvModel(agent_config), name=agent_id)
+    agent_id: Agent(MLPModel(agent_config), name=agent_id)
+    #agent_id: Agent(CoordConvModel(agent_config), name=agent_id)
     for agent_id in agent_ids
 }
 
