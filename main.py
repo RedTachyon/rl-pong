@@ -3,7 +3,7 @@ import numpy as np
 import gym
 
 from rollout import Collector
-from models import MLPModel, LSTMModel, CoordConvModel
+from models import MLPModel, CoordConvModel
 from agents import Agent
 from utils import discount_rewards_to_go, preprocess_frame
 from trainers import PPOTrainer
