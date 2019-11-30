@@ -4,7 +4,7 @@ import numpy as np
 from typing import Dict, Callable, List, Tuple, Optional, Union
 
 from agents import Agent
-from envs import MultiAgentEnv
+from envs import MultiAgentEnv, VectorizedEnvSP
 
 import torch
 from torch import Tensor
@@ -263,6 +263,149 @@ class Collector:
                 obs = next_obs
 
         return self.memory.get_torch_data()
+
+    def reset(self):
+        self.memory.reset()
+
+
+class VecCollector:
+    """
+    Class to perform data collection from two agents.
+    """
+
+    def __init__(self, agents: Dict[str, Agent], env: VectorizedEnvSP, tuple_mode: bool = True):
+        self.agents = agents
+        self.agent_ids: List[str] = list(self.agents.keys())
+        self.env = env
+        self.memory = Memory(self.agent_ids)
+
+        self.tuple_mode = tuple_mode
+
+    def collect_data(self,
+                     deterministic: Optional[Dict[str, bool]] = None,
+                     disable_tqdm: bool = True,
+                     max_steps: int = 600,
+                     reset_memory: bool = True,
+                     include_last: bool = False,
+                     divide_rewards: Optional[int] = 10,
+                     use_gpu: bool = False) -> DataBatch:
+
+        if deterministic is None:
+            deterministic = {agent_id: False for agent_id in self.agent_ids}
+
+        if reset_memory:
+            self.reset()
+
+        # obs: Union[Tuple, Dict]
+        obs = self.env.reset()
+
+        if self.tuple_mode:  # Convert obs to dict
+            obs = convert_obs_to_dict(obs, self.agent_ids)
+
+        obs = {key: preprocess_frame(obs_) for key, obs_ in obs.items()}
+
+        for agent_id, agent in self.agents.items():
+            agent.storage["last_obs"] = obs[agent_id]
+
+        for step in trange(max_steps, disable=disable_tqdm):
+            # Compute the action for each agent
+
+            stacked_obs = {}
+            for agent_id, agent in self.agents.items():
+                stacked_obs[agent_id] = np.stack([obs[agent_id], agent.storage.get("last_obs")], axis=1)
+
+            with torch.no_grad():
+                if use_gpu:
+                    action_info = {  # action, logprob
+                        agent_id: self.agents[agent_id].compute_actions(torch.tensor(stacked_obs[agent_id]).cuda(),
+                                                                        deterministic[agent_id])
+                        for agent_id in self.agent_ids
+                    }
+                else:
+                    action_info = {  # action, logprob
+                        agent_id: self.agents[agent_id].compute_actions(torch.tensor(stacked_obs[agent_id]).cpu(),
+                                                                        deterministic[agent_id])
+                        for agent_id in self.agent_ids
+                    }
+
+            # Unpack the actions
+            action = {agent_id: action_info[agent_id][0].cpu() for agent_id in self.agent_ids}
+            logprob = {agent_id: action_info[agent_id][1].cpu() for agent_id in self.agent_ids}
+
+            # Actual step in the environment
+
+            if self.tuple_mode:  # Convert action to env-compatible
+                env_action = convert_action_to_env(action, self.agent_ids)
+            else:
+                env_action = action
+
+            next_obs, reward, done, info = self.env.step(env_action)
+            if self.tuple_mode:  # Convert outputs to dicts
+                next_obs = convert_obs_to_dict(next_obs, self.agent_ids)
+                reward = convert_obs_to_dict(reward, self.agent_ids)
+                done = {agent_id: done for agent_id in self.agent_ids}
+
+            next_obs = {key: preprocess_frame(obs_) for key, obs_ in next_obs.items()}
+
+            if divide_rewards:
+                reward = {key: (rew / divide_rewards) for key, rew in reward.items()}
+
+            # Saving to memory
+            self.memory.store(stacked_obs, action, reward, logprob, done)
+
+            # Frame stacking
+            for agent_id, agent in self.agents.items():
+                agent.storage["last_obs"] = obs[agent_id]
+
+            # Handle episode/loop ending
+
+            # Update the current obs - either reset, or keep going
+            if all(np.prod(val) for val in done.values()):  # episode is over
+                if include_last:  # record the last observation along with placeholder action/reward/logprob
+                    self.memory.store(next_obs, action, reward, logprob, done)
+
+                break
+
+            else:  # keep going
+                obs = next_obs
+
+        data_batch = self.memory
+
+        final_batch = {}
+        for agent_id in self.agent_ids:
+            obs = torch.tensor(data_batch['observations']['Agent0']).transpose(0, 1)
+            actions = torch.stack(data_batch['actions']['Agent0']).T
+            rewards = torch.tensor(data_batch['rewards']['Agent0']).T
+            logprobs = torch.stack(data_batch['logprobs']['Agent0']).T
+            dones = torch.tensor(data_batch['dones']['Agent0']).T
+
+            valid_obs = []
+            valid_act = []
+            valid_rew = []
+            valid_log = []
+            valid_don = []
+
+            for obs_, action_, reward_, logprob_, done_ in zip(obs, actions, rewards, logprobs, dones):
+                mask = ~torch.isnan(reward_)
+                valid_obs.append(obs_[mask])
+                valid_act.append(action_[mask])
+                valid_rew.append(reward_[mask])
+                valid_log.append(logprob_[mask])
+                valid_don.append(done_[mask])
+
+            valid_obs = {agent_id: torch.cat(valid_obs)}
+            valid_act = {agent_id: torch.cat(valid_act)}
+            valid_rew = {agent_id: torch.cat(valid_rew)}
+            valid_log = {agent_id: torch.cat(valid_log)}
+            valid_don = {agent_id: torch.cat(valid_don)}
+
+        return {
+            "observations": valid_obs,
+            "actions": valid_act,
+            "rewards": valid_rew,
+            "logprobs": valid_log,
+            "dones": valid_don,
+        }
 
     def reset(self):
         self.memory.reset()

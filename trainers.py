@@ -145,6 +145,11 @@ class PPOTrainer:
                 action_batch = action_batch.cuda()
                 old_logprobs_batch = old_logprobs_batch.cuda()
                 agent.model.cuda()
+            else:
+                obs_batch = obs_batch.cpu()
+                action_batch = action_batch.cpu()
+                old_logprobs_batch = old_logprobs_batch.cpu()
+                agent.model.cpu()
 
             logprob_batch, value_batch, entropy_batch = agent.evaluate_actions(obs_batch, action_batch)
 
@@ -152,6 +157,8 @@ class PPOTrainer:
 
             if self.config["use_gpu"]:
                 discounted_batch = discounted_batch.cuda()
+            else:
+                discounted_batch = discounted_batch.cpu()
 
             advantages_batch = (discounted_batch - value_batch.view(-1)).detach()
             advantages_batch = (advantages_batch - advantages_batch.mean()) / (advantages_batch.std() + 1e-6)
@@ -191,9 +198,6 @@ class PPOTrainer:
                 ### Early stopping ###
                 if kl_divergence > self.config["target_kl"]:
                     break
-
-            if self.config["use_gpu"]:
-                agent.model.cpu()
 
             metrics[f"{agent_id}/time_update"] = timer.checkpoint()
             metrics[f"{agent_id}/kl_divergence"] = kl_divergence

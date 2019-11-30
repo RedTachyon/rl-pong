@@ -45,16 +45,48 @@ class MultiAgentEnv(gym.Env):
         raise NotImplementedError
 
 
-class VectorizedEnv(gym.Env):
+class VectorizedEnvSP(gym.Env):
     def __init__(self, env_creator: Callable[[], gym.Env], num_envs: int):
         self.num_envs = num_envs
         self.envs = [
             env_creator() for _ in range(self.num_envs)
         ]
 
-    def reset(self) -> StateDict:
-        obs_batch = [env.reset() for env in self.envs]
-        return {agent_id: np.stack([obs for obs in obs_batch[agent_id]]) for agent_id in obs_batch[0].keys()}
+        self.finishes = [False for _ in self.envs]
 
-    def step(self, actions: List[ActionDict]) -> Tuple[StateDict, RewardDict, DoneDict, InfoDict]:
-        pass
+        sample_env = env_creator()
+        self.zero_obs = np.zeros_like(sample_env.reset())
+
+    def reset(self) -> np.ndarray:
+        obs_batch = [env.reset() for env in self.envs]
+        self.finishes = [False for _ in self.envs]
+        return np.stack(obs_batch)
+
+    def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, List]:
+        assert len(actions) == len(self.envs), AssertionError("Need to pass all the actions")
+        obs_batch = []
+        reward_batch = []
+        done_batch = []
+        info_batch = []
+        for i, (env, action, finished) in enumerate(zip(self.envs, actions, self.finishes)):
+            if not finished:
+                obs, reward, done, info = env.step(action)
+            else:
+                obs = self.zero_obs
+                reward = np.nan
+                done = True
+                info = {}
+
+            obs_batch.append(obs)
+            reward_batch.append(reward)
+            done_batch.append(done)
+            info_batch.append(info)
+
+            if done:
+                self.finishes[i] = True
+
+        obs_batch = np.array(obs_batch)
+        reward_batch = np.array(reward_batch)
+        done_batch = np.array(done_batch)
+
+        return obs_batch, reward_batch, done_batch, info_batch
