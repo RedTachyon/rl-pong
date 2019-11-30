@@ -46,7 +46,6 @@ class Agent:
 
         Args:
             obs: observation array in shape either (obs_size) or (1, obs_size)
-            state: tuple of state tensors of shape (1, lstm_nodes)
             deterministic: boolean, whether to always take the best action
 
         Returns:
@@ -67,7 +66,6 @@ class Agent:
         Args:
             obs_batch: tensor of observations, (batch_size, obs_size)
             action_batch: tensor of actions, (batch_size, )
-            done_batch: tensor of done flags, (batch_size, )
 
         Returns:
             action_logprobs: tensor of action logprobs (batch_size, )
@@ -86,6 +84,7 @@ class Agent:
 
     def reset(self):
         self.storage = {}
+
 
 
 if __name__ == '__main__':

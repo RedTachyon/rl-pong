@@ -110,6 +110,58 @@ class CoordConvModel(BaseModel):
         return action_distribution, value
 
 
+class CoordConv1x1Model(BaseModel):
+    def __init__(self, config: Dict):
+        super().__init__(config)
+
+        default_config = {
+            "input_shape": (100, 100),
+            "num_actions": 5,
+            "activation": "relu",
+
+
+        }
+        self.config = with_default_config(config, default_config)
+        self.activation = get_activation(self.config["activation"])
+
+        input_shape: Tuple[int, int] = self.config["input_shape"]
+
+        self.conv_layers = nn.ModuleList([nn.Conv2d(4, 32, kernel_size=1, stride=1),  # 24x24x32
+                                          nn.Conv2d(32, 64, kernel_size=7, stride=3),  # 6x6x64
+                                          nn.Conv2d(64, 64, kernel_size=3, stride=1)])  # 4x4x64
+
+        _coords_i = torch.linspace(-1, 1, input_shape[0]).view(-1, 1).repeat(1, input_shape[1])
+        _coords_j = torch.linspace(-1, 1, input_shape[1]).view(1, -1).repeat(input_shape[0], 1)
+        self.coords = torch.stack([_coords_i, _coords_j])
+
+        # flatten
+
+        self.policy_head = nn.Linear(4*4*64, self.config["num_actions"])
+        self.value_head = nn.Linear(4*4*64, 1)
+
+    def forward(self, x: Tensor):
+        batch_size = x.shape[0]
+        batch_coords = torch.stack([self.coords for _ in range(batch_size)], dim=0)
+        batch_coords = batch_coords.to(x.device.type)
+        # breakpoint()
+        x = torch.cat([x, batch_coords], dim=1)
+        # noinspection PyTypeChecker
+        for layer in self.conv_layers:
+            x = layer(x)
+            x = self.activation(x)
+
+        nn.AvgPool2d()
+
+        x = x.flatten(1, -1)
+
+        action_logits = self.policy_head(x)
+        value = self.value_head(x)
+
+        action_distribution = Categorical(logits=action_logits)
+
+        return action_distribution, value
+
+
 if __name__ == '__main__':
     policy = MLPModel({})
     data = torch.randn(2, 15)

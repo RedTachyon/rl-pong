@@ -183,7 +183,6 @@ class Collector:
 
         obs = {key: preprocess_frame(obs_) for key, obs_ in obs.items()}
 
-
         episode = 0
 
         for agent_id, agent in self.agents.items():
@@ -196,8 +195,7 @@ class Collector:
 
             stacked_obs = {}
             for agent_id, agent in self.agents.items():
-                stacked_obs[agent_id] = np.stack([obs[agent_id], obs[agent_id] - agent.storage.get("last_obs")], axis=0)
-
+                stacked_obs[agent_id] = np.stack([obs[agent_id], agent.storage.get("last_obs")], axis=0)
 
             # breakpoint()
             action_info = {  # action, logprob

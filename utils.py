@@ -130,6 +130,6 @@ def convert_action_to_env(action: Dict[str, int], names: List[str]):
 
 
 def preprocess_frame(frame: np.ndarray) -> np.ndarray:
-    flat = frame.sum(2)
+    flat = frame.sum(-1)
     flat = flat - flat.min()
-    return np.clip(flat, 0, 1).astype(np.float32)[::2, ::2]  # add pooling?
+    return np.clip(flat, 0, 1).astype(np.float32)[..., ::2, ::2]  # add pooling?

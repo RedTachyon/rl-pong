@@ -1,6 +1,6 @@
 import numpy as np
 import gym
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Callable, List
 
 StateDict = Dict[str, np.ndarray]
 ActionDict = Dict[str, Any]
@@ -43,3 +43,18 @@ class MultiAgentEnv(gym.Env):
 
     def render(self, mode='human'):
         raise NotImplementedError
+
+
+class VectorizedEnv(gym.Env):
+    def __init__(self, env_creator: Callable[[], gym.Env], num_envs: int):
+        self.num_envs = num_envs
+        self.envs = [
+            env_creator() for _ in range(self.num_envs)
+        ]
+
+    def reset(self) -> StateDict:
+        obs_batch = [env.reset() for env in self.envs]
+        return {agent_id: np.stack([obs for obs in obs_batch[agent_id]]) for agent_id in obs_batch[0].keys()}
+
+    def step(self, actions: List[ActionDict]) -> Tuple[StateDict, RewardDict, DoneDict, InfoDict]:
+        pass
