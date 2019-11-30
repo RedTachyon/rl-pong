@@ -33,11 +33,6 @@ class Memory:
                 "Agent1": [act1, act2, ...]
             },
         ...,
-        "states":
-            {
-                "Agent0": [(h1, c1), (h2, c2), ...]
-                "Agent1": [(h1, c1), (h2, c2), ...]
-            }
     }
     """
 
@@ -56,7 +51,6 @@ class Memory:
         _rewards: Dict[str, List[float]] = {agent: [] for agent in self.agents}
         _logprobs: Dict[str, List[float]] = {agent: [] for agent in self.agents}
         _dones: Dict[str, List[bool]] = {agent: [] for agent in self.agents}
-        _states: Dict[str, List[Tuple[Tensor, Tensor]]] = {agent: [] for agent in self.agents}
 
         self.data = {
             "observations": _observations,
@@ -64,7 +58,6 @@ class Memory:
             "rewards": _rewards,
             "logprobs": _logprobs,
             "dones": _dones,
-            "states": _states,
         }
 
         self.torch_data = {}
@@ -74,10 +67,9 @@ class Memory:
               action: Dict[str, int],
               reward: Dict[str, float],
               logprob: Dict[str, float],
-              done: Dict[str, bool],
-              state: Dict[str, Tuple[Tensor, Tensor]]):
+              done: Dict[str, bool]):
 
-        update = (obs, action, reward, logprob, done, state)
+        update = (obs, action, reward, logprob, done)
         for key, var in zip(self.data, update):
             append_dict(var, self.data[key])
 
@@ -99,28 +91,12 @@ class Memory:
         logprobs = self.apply_to_agent(lambda agent: torch.tensor(self.data["logprobs"][agent]))
         dones = self.apply_to_agent(lambda agent: torch.tensor(self.data["dones"][agent]))
 
-        def stack_states(states_: List[Tuple[Tensor, Tensor]]):
-            # transposed_states: Tuple[List[Tensor], ...] = tuple(list(i) for i in zip(*states_))
-            # ([h1, h2, ...], [c1, c2, ...]) /\
-
-            transposed_states: Tuple[List[Tensor], ...] = tuple(list(i) for i in zip(*states_))
-            # ([h1, h2, ...], [c1, c2, ...]) /\
-
-            tensor_states = tuple(torch.cat(state_type) for state_type in transposed_states)
-            # (tensor(h1, h2, ...), tensor(c1, c2, ...)) /\
-
-            return tensor_states
-
-        states: Dict[str, List[Tuple[Tensor, Tensor]]] = self.data["states"]
-        states = self.apply_to_agent(lambda agent: stack_states(states[agent]))
-
         self.torch_data = {
             "observations": observations,  # (batch_size, obs_size) float
             "actions": actions,  # (batch_size, ) int
             "rewards": rewards,  # (batch_size, ) float
             "logprobs": logprobs,  # (batch_size, ) float
             "dones": dones,  # (batch_size, ) bool
-            "states": states,  # (batch_size, 2, lstm_nodes)
         }
 
         return self.torch_data
@@ -187,12 +163,7 @@ class Collector:
                 },
             ...,
 
-            "states":
-                {
-                    "Agent0": (tensor([h1, h2, ...]), tensor([c1, c2, ...])),
 
-                    "Agent1": (tensor([h1, h2, ...]), tensor([c1, c2, ...]))
-                }
         }
         """
         assert not ((num_steps is None) == (num_episodes is None)), ValueError("Exactly one of num_steps, num_episodes "
@@ -212,9 +183,6 @@ class Collector:
 
         obs = {key: preprocess_frame(obs_) for key, obs_ in obs.items()}
 
-        state = {
-            agent_id: self.agents[agent_id].get_initial_state() for agent_id in self.agent_ids
-        }
 
         episode = 0
 
@@ -232,9 +200,8 @@ class Collector:
 
 
             # breakpoint()
-            action_info = {  # action, logprob, state
+            action_info = {  # action, logprob
                 agent_id: self.agents[agent_id].compute_single_action(stacked_obs[agent_id],
-                                                                      state[agent_id],
                                                                       deterministic[agent_id])
                 for agent_id in self.agent_ids
             }
@@ -242,7 +209,6 @@ class Collector:
             # Unpack the actions
             action = {agent_id: action_info[agent_id][0] for agent_id in self.agent_ids}
             logprob = {agent_id: action_info[agent_id][1] for agent_id in self.agent_ids}
-            next_state = {agent_id: action_info[agent_id][2] for agent_id in self.agent_ids}
 
             # Actual step in the environment
 
@@ -264,7 +230,7 @@ class Collector:
                 reward = {key: (rew / divide_rewards) for key, rew in reward.items()}
 
             # Saving to memory
-            self.memory.store(stacked_obs, action, reward, logprob, done, state)
+            self.memory.store(stacked_obs, action, reward, logprob, done)
 
             # Frame stacking
             for agent_id, agent in self.agents.items():
@@ -274,10 +240,10 @@ class Collector:
             if finish_episode and step + 1 == num_steps:
                 end_flag = True
 
-            # Update the current obs and state - either reset, or keep going
+            # Update the current obs - either reset, or keep going
             if all(done.values()):  # episode is over
                 if include_last:  # record the last observation along with placeholder action/reward/logprob
-                    self.memory.store(next_obs, action, reward, logprob, done, next_state)  # TODO: fix this with stacking
+                    self.memory.store(next_obs, action, reward, logprob, done)
                 obs = self.env.reset()
                 if self.tuple_mode:
                     obs = convert_obs_to_dict(obs, self.agent_ids)
@@ -288,9 +254,6 @@ class Collector:
                 for agent_id, agent in self.agents.items():
                     agent.storage["last_obs"] = obs[agent_id]
 
-                state = {
-                    agent_id: self.agents[agent_id].get_initial_state() for agent_id in self.agent_ids
-                }
                 # Episode mode handling
                 episode += 1
                 if episode == num_episodes:
@@ -300,8 +263,6 @@ class Collector:
                     break
             else:  # keep going
                 obs = next_obs
-                state = next_state
-
 
         return self.memory.get_torch_data()
 

@@ -294,9 +294,9 @@ class Wimblepong(gym.core.Env):
 
     def _step_forward(self, actions):
         self._step_actions(actions)
-        self._step_collisions()
+        player1_collide, player2_collide = self._step_collisions()
         player1_reward, player2_reward, done = self._step_check_victory()
-        return player1_reward, player2_reward, done
+        return player1_reward + player1_collide, player2_reward + player2_collide, done
 
     def _step_actions(self, actions):
         # Get the opponent's action, if we're in single mode
@@ -330,6 +330,7 @@ class Wimblepong(gym.core.Env):
             self._reflect(self.player1)
         if p2_collide and self.ball.last_touch is not 2:
             self._reflect(self.player2)
+        return int(p1_collide), int(p2_collide)
 
     def _step_check_victory(self):
         # Move ball and check if game is over

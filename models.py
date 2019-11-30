@@ -12,18 +12,10 @@ from utils import with_default_config, get_activation
 class BaseModel(nn.Module):
     def __init__(self, config: Dict):
         super().__init__()
-        self._stateful = False
         self.config = config
 
-    def forward(self, x: Tensor, state: Tuple) -> Tuple[Distribution, Tensor, Tuple[Tensor, Tensor]]:
+    def forward(self, x: Tensor) -> Tuple[Distribution, Tensor]:
         raise NotImplementedError
-
-    def get_initial_state(self) -> Tuple:
-        raise NotImplementedError
-
-    @property
-    def stateful(self):
-        return self._stateful
 
 
 class MLPModel(BaseModel):
@@ -53,7 +45,7 @@ class MLPModel(BaseModel):
         self.policy_head = nn.Linear(layer_sizes[-1], num_actions)
         self.value_head = nn.Linear(layer_sizes[-1], 1)
 
-    def forward(self, x: Tensor, state: Tuple = ()) -> Tuple[Distribution, Tensor, Tuple[Tensor, Tensor]]:
+    def forward(self, x: Tensor) -> Tuple[Distribution, Tensor]:
         x = x.view((x.shape[0], -1))
         # noinspection PyTypeChecker
         for layer in self.hidden_layers:
@@ -65,10 +57,7 @@ class MLPModel(BaseModel):
 
         action_distribution = Categorical(logits=action_logits)
 
-        return action_distribution, value, state
-
-    def get_initial_state(self):
-        return ()
+        return action_distribution, value
 
 
 class CoordConvModel(BaseModel):
@@ -100,8 +89,9 @@ class CoordConvModel(BaseModel):
         self.policy_head = nn.Linear(4*4*64, self.config["num_actions"])
         self.value_head = nn.Linear(4*4*64, 1)
 
-    def forward(self, x: Tensor, state: Tuple = ()):
+    def forward(self, x: Tensor):
         batch_size = x.shape[0]
+
         batch_coords = torch.stack([self.coords for _ in range(batch_size)], dim=0)
         batch_coords = batch_coords.to(x.device.type)
         # breakpoint()
@@ -118,71 +108,70 @@ class CoordConvModel(BaseModel):
 
         action_distribution = Categorical(logits=action_logits)
 
-        return action_distribution, value, state
+        return action_distribution, value
 
-    def get_initial_state(self):
-        return ()
-
-
-class LSTMModel(BaseModel):
+class BilinearCoordPooling(BaseModel):
     def __init__(self, config: Dict):
         super().__init__(config)
 
-        self._stateful = True
-
         default_config = {
-            "input_size": 15,
-            "num_actions": 5,
-            "pre_lstm_sizes": (32,),
-            "lstm_nodes": 32,
-            "post_lstm_sizes": (32,),
-            "activation": "leaky_relu"
+            "input_shape": (100, 100),
+            "num_actions": 3,
+            "activation": "relu",
+            "field_threshold": 6,
+            "hidden_sizes": (64, 64),
+
         }
+
         self.config = with_default_config(config, default_config)
+        self.activation = get_activation(self.config["activation"])
+        self.field_threshold = self.config["field_threshold"]
 
-        # Unpack the config
-        input_size: int = self.config.get("input_size")
-        num_actions: int = self.config.get("num_actions")
-        pre_lstm_sizes: Tuple[int] = self.config.get("pre_lstm_sizes")
-        lstm_nodes: int = self.config.get("lstm_nodes")
-        post_lstm_sizes: Tuple[int] = self.config.get("post_lstm_sizes")
-        self.activation: Callable = get_activation(self.config.get("activation"))
+        hidden_sizes: Tuple[int] = self.config.get("hidden_sizes")
+        input_shape: Tuple[int, int] = self.config["input_shape"]
 
-        pre_layers = (input_size,) + pre_lstm_sizes
-        post_layers = (lstm_nodes,) + post_lstm_sizes
+        _coords_i = torch.linspace(-1, 1, input_shape[0]).view(-1, 1).repeat(1, input_shape[1])
+        _coords_j = torch.linspace(-1, 1, input_shape[1]).view(1, -1).repeat(input_shape[0], 1)
+        self.coords = torch.stack([_coords_i, _coords_j])
 
-        self.preprocess_layers = nn.ModuleList([
+        self.bilinear = nn.Bilinear(2, 2, 4)
+        self.pool1 = nn.AvgPool2d((100, self.field_threshold))
+        self.pool2 = nn.AvgPool2d((100, 100-2*self.field_threshold))
+        self.pool3 = nn.AvgPool2d((100, self.field_threshold))
+
+        # concat + flatten to [B, 3*4]
+        layer_sizes = (12,) + hidden_sizes
+
+        self.hidden_layers = nn.ModuleList([
             nn.Linear(in_size, out_size)
-            for in_size, out_size in zip(pre_layers, pre_layers[1:])
+            for in_size, out_size in zip(layer_sizes, layer_sizes[1:])
         ])
 
-        self.lstm = nn.LSTMCell(input_size=pre_layers[-1],
-                                hidden_size=lstm_nodes,
-                                bias=True)
+        self.policy_head = nn.Linear(layer_sizes[-1], self.config["num_actions"])
+        self.value_head = nn.Linear(layer_sizes[-1], 1)
 
-        self.postprocess_layers = nn.ModuleList([
-            nn.Linear(in_size, out_size)
-            for in_size, out_size in zip(post_layers, post_layers[1:])
-        ])
-
-        self.policy_head = nn.Linear(post_layers[-1], num_actions)
-        self.value_head = nn.Linear(post_layers[-1], 1)
-
-    def forward(self, x: Tensor, state: Tuple[Tensor, Tensor]) -> Tuple[Distribution, Tensor, Tuple[Tensor, Tensor]]:
+    def forward(self, x: Tensor):
         # noinspection PyTypeChecker
-        for layer in self.preprocess_layers:
-            x = layer(x)
-            x = self.activation(x)
 
-        if len(state) == 0:
-            state = self.get_initial_state()
+        batch_size = x.shape[0]
+        batch_coords = torch.stack([self.coords for _ in range(batch_size)], dim=0).to(x.device.type)
 
-        (h_state, c_state) = self.lstm(x, state)
+        # transpose to [N, H, W, C]
+        batch_coords = torch.transpose(batch_coords, -1, 1).contiguous()
+        x = torch.transpose(x, -1, 1).contiguous()
 
-        x = h_state
+        x = self.bilinear(x, batch_coords) # [N, 100, 100, 4]
+        x = torch.transpose(x, -1, 1)
 
-        # noinspection PyTypeChecker
-        for layer in self.postprocess_layers:
+        # Pooling
+        x1 = self.pool1(x[:,:,:,:self.field_threshold]).to(x.device.type)
+        x2 = self.pool2(x[:,:,:,self.field_threshold:-self.field_threshold]).to(x.device.type)
+        x3 = self.pool3(x[:,:,:,-self.field_threshold:]).to(x.device.type)
+
+        x = torch.cat([x1, x2,x3], dim=1)
+        x = x.flatten(1, -1)
+
+        for layer in self.hidden_layers:
             x = layer(x)
             x = self.activation(x)
 
@@ -191,15 +180,11 @@ class LSTMModel(BaseModel):
 
         action_distribution = Categorical(logits=action_logits)
 
-        return action_distribution, value, (h_state, c_state)
-
-    def get_initial_state(self) -> Tuple[Tensor, Tensor]:
-        return torch.zeros(1, self.config['lstm_nodes'], requires_grad=True), \
-               torch.zeros(1, self.config['lstm_nodes'], requires_grad=True)
+        return action_distribution, value
 
 
 if __name__ == '__main__':
-    policy = LSTMModel({})
+    policy = MLPModel({})
     data = torch.randn(2, 15)
 
-    action_dist, value_, state_ = policy(data, ())
+    action_dist, value_ = policy(data, ())

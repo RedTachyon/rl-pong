@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Union, Optional
 
+import os
 import torch
 from torch import Tensor
 from torch import optim
@@ -252,6 +253,10 @@ class PPOTrainer:
             self.train_on_data(data_batch, step, extra_metrics=time_metric, timer=timer)
             total_time = step_timer.checkpoint()
             self.write_dict({f"{agent_id}/time_total": total_time for agent_id in self.agent_ids}, step)
+
+            if step % 50 == 0:
+                for agent_id, agent in self.agents.items():
+                    torch.save(agent, os.path.join(str(self.path), f"{agent_id}_{step}.pt"))
 
 
 if __name__ == '__main__':
