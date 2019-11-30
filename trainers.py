@@ -228,8 +228,7 @@ class PPOTrainer:
             metrics[f"{agent_id}/episodes_this_iter"] = len(ep_ids)
             metrics[f"{agent_id}/mean_entropy"] = torch.mean(entropy_batch).item()
 
-
-            # metrics[f"{agent_id}/winrate"] =
+            metrics[f"{agent_id}/winrate"] = (reward_batch[torch.nonzero(done_batch).view(-1)].mean().item() + 1) / 2
 
             if extra_metrics is not None:
                 metrics = with_default_config(metrics, extra_metrics)  # add extra_metrics if not computed here
