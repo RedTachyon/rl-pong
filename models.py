@@ -119,6 +119,7 @@ class BilinearCoordPooling(BaseModel):
             "num_actions": 3,
             "activation": "relu",
             "field_threshold": 6,
+            "hidden_sizes": (64, 64),
 
         }
 
@@ -126,6 +127,7 @@ class BilinearCoordPooling(BaseModel):
         self.activation = get_activation(self.config["activation"])
         self.field_threshold = self.config["field_threshold"]
 
+        hidden_sizes: Tuple[int] = self.config.get("hidden_sizes")
         input_shape: Tuple[int, int] = self.config["input_shape"]
 
         _coords_i = torch.linspace(-1, 1, input_shape[0]).view(-1, 1).repeat(1, input_shape[1])
@@ -137,12 +139,19 @@ class BilinearCoordPooling(BaseModel):
         self.pool2 = nn.AvgPool2d((100, 100-2*self.field_threshold))
         self.pool3 = nn.AvgPool2d((100, self.field_threshold))
 
+        # concat + flatten to [B, 3*4]
+        layer_sizes = (12,) + hidden_sizes
 
-        # flatten
-        self.policy_head = nn.Linear(12, self.config["num_actions"])
-        self.value_head = nn.Linear(12, 1)
+        self.hidden_layers = nn.ModuleList([
+            nn.Linear(in_size, out_size)
+            for in_size, out_size in zip(layer_sizes, layer_sizes[1:])
+        ])
+
+        self.policy_head = nn.Linear(layer_sizes[-1], self.config["num_actions"])
+        self.value_head = nn.Linear(layer_sizes[-1], 1)
 
     def forward(self, x: Tensor):
+        # noinspection PyTypeChecker
 
         batch_size = x.shape[0]
         batch_coords = torch.stack([self.coords for _ in range(batch_size)], dim=0).to(x.device.type)
@@ -154,13 +163,17 @@ class BilinearCoordPooling(BaseModel):
         x = self.bilinear(x, batch_coords) # [N, 100, 100, 4]
         x = torch.transpose(x, -1, 1)
 
-        # Pool
+        # Pooling
         x1 = self.pool1(x[:,:,:,:self.field_threshold]).to(x.device.type)
         x2 = self.pool2(x[:,:,:,self.field_threshold:-self.field_threshold]).to(x.device.type)
         x3 = self.pool3(x[:,:,:,-self.field_threshold:]).to(x.device.type)
 
         x = torch.cat([x1, x2,x3], dim=1)
         x = x.flatten(1, -1)
+
+        for layer in self.hidden_layers:
+            x = layer(x)
+            x = self.activation(x)
 
         action_logits = self.policy_head(x)
         value = self.value_head(x)
