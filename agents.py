@@ -5,6 +5,7 @@ from torch import nn, Tensor
 from torch.distributions import Distribution, Categorical
 
 from models import BaseModel, MLPModel
+from utils import preprocess_frame
 
 from typing import Tuple, Union, List
 
@@ -87,6 +88,40 @@ class Agent:
     def reset(self):
         self.storage = {}
 
+class NaughtyAgent: # TODO: rename to Agent in the final hand-in
+    def __init__(self, player_id=1):
+        self.player_id = player_id
+        self.name = '┬─┬ノ( º _ ºノ)'
+        self.last_obs = None
+        use_coda = torch.cuda.is_available()
+        self.device = torch.device('cuda' if use_coda else 'cpu')
+
+        self.modelpath = 'ilToro.pt'
+        self.load_model()
+
+    def load_model(self):
+        self.model = torch.load(self.modelpath, map_location=self.device)
+
+    def get_name(self):
+        return self.name
+
+    def reset(self):
+        self.last_obs = None
+
+    def get_action(self, frame:np.array):
+        obs = self.preprocess(frame).to(self.device)
+
+        action_distribution, _ = self.model(obs)
+        action = torch.argmax(action_distribution.probs, dim=-1)
+
+        return action.item()
+
+    def preprocess(self, obs):
+        obs = preprocess_frame(obs)
+        last_obs = obs if self.last_obs is None else self.last_obs
+        stacked_obs = np.stack([obs, last_obs], axis=0)
+        self.last_obs = obs
+        return torch.tensor([stacked_obs])
 
 if __name__ == '__main__':
     pass
