@@ -3,7 +3,7 @@ import numpy as np
 import gym
 
 from rollout import Collector
-from models import MLPModel, CoordConvModel
+from models import MLPModel, CoordConvModel, BilinearCoordPooling
 from agents import Agent
 from utils import discount_rewards_to_go, preprocess_frame
 from trainers import PPOTrainer
@@ -22,13 +22,13 @@ import time
 import matplotlib.pyplot as plt
 
 
-# env = gym.make('WimblepongSimpleAI-v0')
+#env = gym.make('WimblepongSimpleAI-v0')
 env = gym.make('WimblepongVisualSimpleAI-v0')
 
 agent_config = {
     # SHARED
 
-    "input_size": 20000,  # 2-stacked obs
+    "input_size": 12,  # 2-stacked obs
     "num_actions": 3,
     "activation": "relu",
 
@@ -38,7 +38,7 @@ agent_config = {
 
 agent_ids = ["Agent0"]#, "Agent1"]
 agents: Dict[str, Agent] = {
-    agent_id: Agent(CoordConvModel(agent_config), name=agent_id)
+    agent_id: Agent(BilinearCoordPooling(agent_config), name=agent_id)
     for agent_id in agent_ids
 }
 
@@ -68,6 +68,7 @@ trainer_config = {
     "tensorboard_name": "visual_test",
 
     # Compatibility
+    "visual": True,
     "tuple_mode": True,
     "use_gpu": True,
 
