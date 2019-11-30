@@ -110,9 +110,71 @@ class CoordConvModel(BaseModel):
         return action_distribution, value
 
 
+class BilinearCoordPooling(BaseModel):
+    def __init__(self, config: Dict):
+        super().__init__(config)
+
+        default_config = {
+            "input_shape": (100, 100),
+            "num_actions": 3,
+            "activation": "relu",
+            "field_threshold": 6,
+
+        }
+
+        self.config = with_default_config(config, default_config)
+        self.activation = get_activation(self.config["activation"])
+        self.field_threshold = self.config["field_threshold"]
+
+        input_shape: Tuple[int, int] = self.config["input_shape"]
+
+        _coords_i = torch.linspace(-1, 1, input_shape[0]).view(-1, 1).repeat(1, input_shape[1])
+        _coords_j = torch.linspace(-1, 1, input_shape[1]).view(1, -1).repeat(input_shape[0], 1)
+        self.coords = torch.stack([_coords_i, _coords_j])
+
+        self.bilinear = nn.Bilinear(2, 2, 4)
+        self.pool1 = nn.AvgPool2d((100, self.field_threshold))
+        self.pool2 = nn.AvgPool2d((100, 100-2*self.field_threshold))
+        self.pool3 = nn.AvgPool2d((100, self.field_threshold))
+
+
+        # flatten
+        self.policy_head = nn.Linear(12, self.config["num_actions"])
+        self.value_head = nn.Linear(12, 1)
+
+    def forward(self, x: Tensor):
+
+        batch_size = x.shape[0]
+        batch_coords = torch.stack([self.coords for _ in range(batch_size)], dim=0).to(x.device.type)
+
+        # transpose to [N, H, W, C]
+        batch_coords = torch.transpose(batch_coords, -1, 1).contiguous()
+        x = torch.transpose(x, -1, 1).contiguous()
+
+        x = self.bilinear(x, batch_coords) # [N, 100, 100, 4]
+        x = torch.transpose(x, -1, 1)
+
+        breakpoint()
+
+        # Pool
+        x1 = self.pool1(x[:,:,:,:self.field_threshold]).to(x.device.type)  # [N, 4]
+        x2 = self.pool2(x[:,:,:,self.field_threshold:-self.field_threshold]).to(x.device.type)
+        x3 = self.pool3(x[:,:,:,-self.field_threshold:]).to(x.device.type)
+
+        x = torch.cat([x1, x2,x3], dim=1)
+        x = x.flatten(1, -1)
+
+        action_logits = self.policy_head(x)
+        value = self.value_head(x)
+
+        action_distribution = Categorical(logits=action_logits)
+
+        return action_distribution, value
+
 
 if __name__ == '__main__':
-    policy = MLPModel({})
-    data = torch.randn(2, 15)
-
-    action_dist, value_ = policy(data, ())
+    pass
+    # policy = MLPModel({})
+    # data = torch.randn(2, 15)
+    #
+    # action_dist, value_ = policy(data, ())
