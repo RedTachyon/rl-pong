@@ -113,7 +113,7 @@ class Collector:
     Class to perform data collection from two agents.
     """
 
-    def __init__(self, agents: Dict[str, Agent], env: gym.Env, tuple_mode: bool = False):
+    def __init__(self, agents: Dict[str, Agent], env: gym.Env, tuple_mode: bool = True):
         self.agents = agents
         self.agent_ids: List[str] = list(self.agents.keys())
         self.env = env
