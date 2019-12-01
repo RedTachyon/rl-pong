@@ -187,6 +187,7 @@ class Collector:
 
         for agent_id, agent in self.agents.items():
             agent.storage["last_obs"] = obs[agent_id]
+            agent.model.cpu()
 
         end_flag = False
         full_steps = (num_steps + 100 * int(finish_episode)) if num_steps else max_steps * num_episodes
