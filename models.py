@@ -154,7 +154,7 @@ class BilinearCoordPooling(BaseModel):
         x = self.bilinear(x, batch_coords) # [N, 100, 100, 4]
         x = torch.transpose(x, -1, 1)
 
-        breakpoint()
+        # breakpoint()
 
         # Pool
         x1 = self.pool1(x[:,:,:,:self.field_threshold]).to(x.device.type)  # [N, 4]

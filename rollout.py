@@ -195,7 +195,7 @@ class Collector:
 
             stacked_obs = {}
             for agent_id, agent in self.agents.items():
-                stacked_obs[agent_id] = np.stack([obs[agent_id], agent.storage.get("last_obs")], axis=0)
+                stacked_obs[agent_id] = np.stack([obs[agent_id], obs[agent_id] - agent.storage.get("last_obs")], axis=0)
 
             # breakpoint()
             action_info = {  # action, logprob
@@ -306,6 +306,10 @@ class VecCollector:
 
         for agent_id, agent in self.agents.items():
             agent.storage["last_obs"] = obs[agent_id]
+            if use_gpu:
+                agent.model.cuda()
+            else:
+                agent.model.cpu()
 
         for step in trange(max_steps, disable=disable_tqdm):
             # Compute the action for each agent
