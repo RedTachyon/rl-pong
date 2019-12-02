@@ -6,7 +6,7 @@ from torch.distributions import Distribution, Categorical
 from torch.nn import functional as F
 
 from layers import RelationLayer
-from utils import with_default_config, get_activation
+from utils import with_default_config, get_activation, initialize_unit_
 
 
 class BaseModel(nn.Module):
@@ -132,37 +132,40 @@ class BilinearCoordPooling(BaseModel):
         _coords_j = torch.linspace(-1, 1, input_shape[1]).view(1, -1).repeat(input_shape[0], 1)
         self.coords = torch.stack([_coords_i, _coords_j])
 
-        self.bilinear = nn.Bilinear(2, 2, 4)
-        self.pool1 = nn.AvgPool2d((100, self.field_threshold))
-        self.pool2 = nn.AvgPool2d((100, 100-2*self.field_threshold))
-        self.pool3 = nn.AvgPool2d((100, self.field_threshold))
+        self.bilinear = nn.Bilinear(2, 2, 4, bias=False)
+        initialize_unit_(self.bilinear)
 
+        self.pool = nn.AvgPool2d(6, stride=6)
 
         # flatten
-        self.policy_head = nn.Linear(12, self.config["num_actions"])
-        self.value_head = nn.Linear(12, 1)
+        self.linear_layers = nn.ModuleList([nn.Linear(1024, 16, bias=False),
+                                            nn.Linear(16, 16),
+                                            nn.Linear(16, 16)])
+
+        self.policy_head = nn.Linear(16, self.config["num_actions"])
+        self.value_head = nn.Linear(16, 1)
 
     def forward(self, x: Tensor):
-
         batch_size = x.shape[0]
         batch_coords = torch.stack([self.coords for _ in range(batch_size)], dim=0).to(x.device.type)
 
         # transpose to [N, H, W, C]
-        batch_coords = torch.transpose(batch_coords, -1, 1).contiguous()
+        batch_coords = torch.transpose(batch_coords, 1, -1).contiguous()
         x = torch.transpose(x, -1, 1).contiguous()
 
-        x = self.bilinear(x, batch_coords) # [N, 100, 100, 4]
+        x = self.bilinear(x, batch_coords)  # [N, 100, 100, 4]
         x = torch.transpose(x, -1, 1)
 
         # breakpoint()
 
         # Pool
-        x1 = self.pool1(x[:,:,:,:self.field_threshold]).to(x.device.type)  # [N, 4]
-        x2 = self.pool2(x[:,:,:,self.field_threshold:-self.field_threshold]).to(x.device.type)
-        x3 = self.pool3(x[:,:,:,-self.field_threshold:]).to(x.device.type)
+        x = self.pool(x)
+        x = torch.flatten(x, 1)
 
-        x = torch.cat([x1, x2,x3], dim=1)
-        x = x.flatten(1, -1)
+        # noinspection PyTypeChecker
+        for layer in self.linear_layers:
+            x = layer(x)
+            x = self.activation(x)
 
         action_logits = self.policy_head(x)
         value = self.value_head(x)

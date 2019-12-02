@@ -1,9 +1,10 @@
 import numpy as np
 
-from typing import Dict, List, TypeVar, Union, Tuple, Any, Callable, Type
+from typing import Dict, List, TypeVar, Union, Tuple, Any, Callable, Type, Optional
 
 import torch
 from torch import Tensor
+from torch.nn import Module
 import torch.nn.functional as F
 import time
 
@@ -133,3 +134,20 @@ def preprocess_frame(frame: np.ndarray) -> np.ndarray:
     flat = frame.sum(-1)
     flat = flat - flat.min()
     return np.clip(flat, 0, 1).astype(np.float32)[..., ::2, ::2]  # add pooling?
+
+
+def get_unit_matrices(axis1: int, axis2: Optional[int] = None) -> Tensor:
+    if axis2 is None:
+        axis2 = axis1
+    matrices = []
+    for (i, j) in ((i, j) for i in range(axis1) for j in range(axis2)):
+        matrix = torch.zeros(axis1, axis2)
+        matrix[i, j] = 1.
+        matrices.append(matrix)
+
+    return torch.stack(matrices)
+
+
+def initialize_unit_(layer: Module, size=(2, 2)):
+    layer.weight.data = get_unit_matrices(*size)
+    layer.weight.requires_grad = False
