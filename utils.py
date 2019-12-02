@@ -128,12 +128,13 @@ def convert_action_to_env(action: Dict[str, int], names: List[str]):
     else:
         return tuple(action[name] for name in names)
 
-
-def preprocess_frame(frame: np.ndarray, preserve_channels: bool = False) -> np.ndarray:
+def preprocess_frame(frame: np.ndarray, preserve_channels: bool = False, visual: bool = True) -> np.ndarray:
     if preserve_channels:
         return np.transpose(frame, (2, 0, 1)).astype(np.float32)[:, ::2, ::2]
-    else:
+    elif visual:
         flat = frame.sum(2)
         flat = flat - flat.min()
         flat_clipped = np.clip(flat, 0, 1).astype(np.float32)[::2, ::2]  # add pooling?
         return flat_clipped
+    else:
+        return frame
