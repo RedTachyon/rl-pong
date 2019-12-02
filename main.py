@@ -71,7 +71,7 @@ trainer_config = {
 
     # Compatibility
     "tuple_mode": True,
-    "use_gpu": Truey,
+    "use_gpu": True,
 
 }
 
