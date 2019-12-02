@@ -110,6 +110,90 @@ class CoordConvModel(BaseModel):
 
         return action_distribution, value
 
+
+class SpatialSoftMaxModel(BaseModel):
+    def __init__(self, config: Dict):
+        super().__init__(config)
+
+        default_config = {
+            "input_shape": (100, 100),
+            "num_actions": 5,
+            "activation": "relu",
+
+        }
+        self.config = with_default_config(config, default_config)
+
+        input_shape: Tuple[int, int] = self.config["input_shape"]
+        input_size: int = self.config.get("input_size")
+        num_actions: int = self.config.get("num_actions")
+        hidden_sizes: Tuple[int] = self.config.get("hidden_sizes")
+
+        self.activation: Callable = get_activation(self.config.get("activation"))
+
+
+        self.conv = nn.Conv2d(3, 3, kernel_size=3, padding=1)
+
+        layer_sizes = (input_size,) + hidden_sizes
+
+        self.hidden_layers = nn.ModuleList([
+            nn.Linear(in_size, out_size)
+            for in_size, out_size in zip(layer_sizes, layer_sizes[1:])
+        ])
+
+        self.policy_head = nn.Linear(layer_sizes[-1], num_actions)
+        self.value_head = nn.Linear(layer_sizes[-1], 1)
+
+    def soft_argmax(self, x:Tensor):
+        n, c, h, w = x.size()
+
+        posx, posy = torch.meshgrid(torch.linspace(-1, 1, h), torch.linspace(-1., 1., w))
+        posx = posx.reshape(h * w).to(x.device.type)
+        posy = posy.reshape(h * w).to(x.device.type)
+
+        x = x.reshape(-1, h * w)
+        x = F.softmax(x, dim=-1)
+
+        exp_x = torch.sum(posx * x, -1, keepdim=True)
+        exp_y = torch.sum(posy * x, -1, keepdim=True)
+
+        exp_xy = torch.cat([exp_x, exp_y], 1).to(x.device.type)
+        return exp_xy.reshape(-1, c * 2)
+
+    def indices(self, x:Tensor, x_only: bool = False):
+        n, c, d, _ = x.size()
+        m = x.view(n, c, -1).argmax(-1)
+        indices = ((m // d).view(-1, 1), ) if x_only else ((m // d).view(-1, 1), (m % d).view(-1, 1))
+        return torch.cat(indices, dim=-1)
+
+    def forward(self, x: Tensor):
+        # x = [n, 6, 100, 100]
+
+        x1 = x[:, :3, :, :].to(x.device.type).to(x.device.type) # x1 = [n, 3, 100, 100]
+        x2 = x[:, 3:, :, :].to(x.device.type).to(x.device.type) # x2 = [n, 3, 100, 100]
+
+        x1 = self.conv(x1)
+        x2 = self.conv(x2)
+
+        x1 = self.soft_argmax(x1)
+        x2 = self.soft_argmax(x2)
+
+        x = torch.cat([x1, x2], dim=1)
+
+        for layer in self.hidden_layers:
+            x = layer(x)
+            x = self.activation(x)
+
+        action_logits = self.policy_head(x)
+        value = self.value_head(x)
+
+        action_distribution = Categorical(logits=action_logits)
+
+        return action_distribution, value
+
+    def get_initial_state(self):
+        return ()
+
+
 class BilinearCoordPooling(BaseModel):
     def __init__(self, config: Dict):
         super().__init__(config)

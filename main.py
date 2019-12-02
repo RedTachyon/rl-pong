@@ -3,7 +3,7 @@ import numpy as np
 import gym
 
 from rollout import Collector
-from models import MLPModel, CoordConvModel
+from models import MLPModel, CoordConvModel, SpatialSoftMaxModel
 from agents import Agent
 from utils import discount_rewards_to_go, preprocess_frame
 from trainers import PPOTrainer
@@ -28,7 +28,7 @@ env = gym.make('WimblepongVisualSimpleAI-v0')
 agent_config = {
     # SHARED
 
-    "input_size": 1200,  # 2-stacked obs
+    "input_size": 12,  # 2-stacked obs
     "num_actions": 3,
     "activation": "relu",
 
@@ -38,7 +38,7 @@ agent_config = {
 
 agent_ids = ["Agent0"]#, "Agent1"]
 agents: Dict[str, Agent] = {
-    agent_id: Agent(MLPModel(agent_config), name=agent_id)
+    agent_id: Agent(SpatialSoftMaxModel(agent_config), name=agent_id)
     #agent_id: Agent(CoordConvModel(agent_config), name=agent_id)
     for agent_id in agent_ids
 }
@@ -57,6 +57,7 @@ trainer_config = {
         "amsgrad": False
     },
     "gamma": 0.95,  # Discount factor
+    "preserve_channels": True, #Store frames with colors
 
     # PPO settings
     "ppo_steps": 25,
@@ -66,11 +67,11 @@ trainer_config = {
     "entropy_coeff": 0.001,
 
     # Tensorboard settings
-    "tensorboard_name": "visual_test",
+    "tensorboard_name": "spatial_softmax",
 
     # Compatibility
     "tuple_mode": True,
-    "use_gpu": True,
+    "use_gpu": Truey,
 
 }
 

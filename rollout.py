@@ -131,7 +131,8 @@ class Collector:
                      include_last: bool = False,
                      finish_episode: bool = True,
                      divide_rewards: Optional[int] = None,
-                     visual: bool = False) -> DataBatch:
+                     visual: bool = False,
+                     preserve_channels: bool = False) -> DataBatch:
 
         """
         Performs a rollout of the agents in the environment, for an indicated number of steps or episodes.
@@ -181,7 +182,7 @@ class Collector:
         if self.tuple_mode:  # Convert obs to dict
             obs = convert_obs_to_dict(obs, self.agent_ids)
 
-        obs = {key: preprocess_frame(obs_) for key, obs_ in obs.items()}
+        obs = {key: preprocess_frame(obs_, preserve_channels) for key, obs_ in obs.items()}
 
 
         episode = 0
@@ -196,8 +197,7 @@ class Collector:
 
             stacked_obs = {}
             for agent_id, agent in self.agents.items():
-                stacked_obs[agent_id] = np.stack([obs[agent_id], obs[agent_id] - agent.storage.get("last_obs")], axis=0)
-
+                stacked_obs[agent_id] = np.concatenate([obs[agent_id], agent.storage.get("last_obs")], axis=0)
 
             # breakpoint()
             action_info = {  # action, logprob
@@ -224,8 +224,7 @@ class Collector:
                 reward = convert_obs_to_dict(reward, self.agent_ids)
                 done = {agent_id: done for agent_id in self.agent_ids}
 
-            next_obs = {key: preprocess_frame(obs_) for key, obs_ in next_obs.items()}
-
+            next_obs = {key: preprocess_frame(obs_, preserve_channels) for key, obs_ in next_obs.items()}
             if divide_rewards:
                 reward = {key: (rew / divide_rewards) for key, rew in reward.items()}
 
@@ -248,7 +247,7 @@ class Collector:
                 if self.tuple_mode:
                     obs = convert_obs_to_dict(obs, self.agent_ids)
 
-                obs = {key: preprocess_frame(obs_) for key, obs_ in obs.items()}
+                obs = {key: preprocess_frame(obs_, preserve_channels) for key, obs_ in obs.items()}
 
                 # Frame stacking
                 for agent_id, agent in self.agents.items():

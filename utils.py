@@ -129,15 +129,11 @@ def convert_action_to_env(action: Dict[str, int], names: List[str]):
         return tuple(action[name] for name in names)
 
 
-def PCA(frame:np.ndarray) -> np.ndarray:
-    X = torch.from_numpy(frame)
-    U,S,V = torch.svd(torch.t(X))
-    C = torch.mm(X, U[:,:6])
-    return C
-
-
-def preprocess_frame(frame: np.ndarray) -> np.ndarray:
-    flat = frame.sum(2)
-    flat = flat - flat.min()
-    flat_clipped = np.clip(flat, 0, 1).astype(np.float32)[::2, ::2]  # add pooling?
-    return PCA(flat_clipped)
+def preprocess_frame(frame: np.ndarray, preserve_channels: bool = False) -> np.ndarray:
+    if preserve_channels:
+        return np.transpose(frame, (2, 0, 1)).astype(np.float32)[:, ::2, ::2]
+    else:
+        flat = frame.sum(2)
+        flat = flat - flat.min()
+        flat_clipped = np.clip(flat, 0, 1).astype(np.float32)[::2, ::2]  # add pooling?
+        return flat_clipped
