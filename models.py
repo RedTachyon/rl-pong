@@ -14,6 +14,11 @@ class BaseModel(nn.Module):
         super().__init__()
         self.config = config
 
+        if self.config["load_model"]:
+            for agent_id, agent in self.agents.items():
+                self = torch.load(self.config["load_model_from_path"])
+
+
     def forward(self, x: Tensor) -> Tuple[Distribution, Tensor]:
         raise NotImplementedError
 
@@ -119,8 +124,8 @@ class SpatialSoftMaxModel(BaseModel):
             "input_shape": (100, 100),
             "num_actions": 5,
             "activation": "relu",
-
         }
+
         self.config = with_default_config(config, default_config)
 
         input_shape: Tuple[int, int] = self.config["input_shape"]

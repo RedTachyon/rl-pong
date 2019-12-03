@@ -4,7 +4,7 @@ import torch
 from torch import nn, Tensor
 from torch.distributions import Distribution, Categorical
 
-from models import BaseModel, MLPModel
+from models import BaseModel, MLPModel, SpatialSoftMaxModel
 from utils import preprocess_frame
 
 from typing import Tuple, Union, List
@@ -15,12 +15,6 @@ class Agent:
         self.model = model
         self.name = name
         self.storage = {}
-        
-        use_coda = torch.cuda.is_available()
-        self.device = torch.device('cuda' if use_coda else 'cpu')
-
-    def load_model(self, path):
-        self.model = torch.load(path, map_location=self.device)
 
     def compute_actions(self, obs_batch: Tensor,
                         deterministic: bool = False) -> Tuple[Tensor, Tensor]:
@@ -100,7 +94,6 @@ class NaughtyAgent: # TODO: rename to Agent in the final hand-in
         self.last_obs = None
         use_coda = torch.cuda.is_available()
         self.device = torch.device('cuda' if use_coda else 'cpu')
-
         self.modelpath = 'ilToro.pt'
         self.load_model()
 

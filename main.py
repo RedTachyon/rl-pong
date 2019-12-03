@@ -34,6 +34,10 @@ agent_config = {
 
     # MLP
     "hidden_sizes": (64, ) * 2,
+
+    "load_model": True,
+    "load_model_from_path": '/home/llama/tb_logs/spatial_softmax_2019-12-02_21-26-53/Agent0_1300.pt',
+
 }
 
 agent_ids = ["Agent0"]#, "Agent1"]
@@ -58,8 +62,6 @@ trainer_config = {
     },
     "gamma": 0.999,  # Discount factor
     "preserve_channels": True, #Store frames with colors
-    "load_model": True,
-    "load_model_from_path": '/home/llama/tb_logs/spatial_softmax_2019-12-02_21-26-53Agent0_1300.pt',
 
     # PPO settings
     "ppo_steps": 25,
