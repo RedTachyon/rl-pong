@@ -15,8 +15,7 @@ class BaseModel(nn.Module):
         self.config = config
 
         if self.config["load_model"]:
-            for agent_id, agent in self.agents.items():
-                self = torch.load(self.config["load_model_from_path"])
+            self = torch.load(self.config["load_model_from_path"])
 
 
     def forward(self, x: Tensor) -> Tuple[Distribution, Tensor]:
