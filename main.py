@@ -57,7 +57,7 @@ trainer_config = {
     },
     "gamma": 0.9999,  # Discount factor
     "preserve_channels": False, #Store frames with colors
-    "load_weights_from_step": 1300,
+    "load_weights_from_step": '_1300',
 
     # PPO settings
     "ppo_steps": 25,
