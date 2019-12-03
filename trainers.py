@@ -52,7 +52,7 @@ class PPOTrainer:
             },
             "gamma": 0.95,  # Discount factor
             "preserve_channels": False,
-            "load_weights_from_step": '0',
+            "load_weights_from_step": 0,
 
             # PPO settings
             "ppo_steps": 25,
@@ -109,9 +109,9 @@ class PPOTrainer:
         else:
             self.writer = None
 
-        self.load_step = int(''.join(c for c in self.config['load_weights_from_step'] if c.isdigit()))
-        for agent_id in  self.agents.items():
-            torch.load(agents[agent_id], os.path.join(str(self.path), f"{agent_id}_{self.load_step}.pt"))
+        if self.config['load_weights_from_step'] > 0:
+            for agent_id, agent in self.agents.items():
+                torch.load(agents[agent_id], os.path.join(str(self.path), f"{agent_id}_{self.config['load_weights_from_step']}.pt"))
 
         self.collector = Collector(agents=self.agents,
                                    env=self.env,
@@ -252,7 +252,7 @@ class PPOTrainer:
         step_timer = Timer()
         for step in trange(starting_iteration, starting_iteration + num_iterations, disable=disable_tqdm):
             timer.checkpoint()
-            step +=self.load_step
+            step += self.config['load_weights_from_step']
             data_batch = self.collector.collect_data(num_steps=self.config["batch_size"],
                                                      finish_episode=finish_episode,
                                                      divide_rewards=divide_rewards,
