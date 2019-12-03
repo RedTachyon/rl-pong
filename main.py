@@ -3,7 +3,7 @@ import numpy as np
 import gym
 
 from rollout import Collector
-from models import MLPModel, CoordConvModel, BilinearCoordPooling, SpatialSoftMaxModel, StridedConvModel
+from models import MLPModel, CoordConvModel, SpatialSoftMaxModel
 from agents import Agent
 from utils import discount_rewards_to_go, preprocess_frame
 from trainers import PPOTrainer
@@ -24,6 +24,7 @@ import matplotlib.pyplot as plt
 
 #env = gym.make('WimblepongSimpleAI-v0')
 env = gym.make('WimblepongVisualSimpleAI-v0')
+ env = gym.make('WimblepongVisualSimpleAI-v0')
 
 agent_config = {
     # SHARED
@@ -39,6 +40,7 @@ agent_config = {
 agent_ids = ["Agent0"]#, "Agent1"]
 agents: Dict[str, Agent] = {
     agent_id: Agent(SpatialSoftMaxModel(agent_config), name=agent_id)
+    #agent_id: Agent(CoordConvModel(agent_config), name=agent_id)
     for agent_id in agent_ids
 }
 
