@@ -55,7 +55,7 @@ trainer_config = {
         "weight_decay": 0,
         "amsgrad": False
     },
-    "gamma": 0.9999,  # Discount factor
+    "gamma": 0.95,  # Discount factor
     "preserve_channels": False, #Store frames with colors
     "load_weights_from_step": '_1300',
 
