@@ -57,6 +57,7 @@ trainer_config = {
     },
     "gamma": 0.9999,  # Discount factor
     "preserve_channels": False, #Store frames with colors
+    "load_weights_from_prefix": " spatial_softmax_2019-12-02_21-26-53",
     "load_weights_from_step": 1300,
 
     # PPO settings
@@ -67,7 +68,7 @@ trainer_config = {
     "entropy_coeff": 0.01,
 
     # Tensorboard settings
-    "tensorboard_name": "strided_conv_++entropy_--reward_bonus",
+    "tensorboard_name": "spatial_softmax_++entropy_--reward_bonus",
 
     # Compatibility
     "visual": True,
