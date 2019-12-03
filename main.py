@@ -38,7 +38,7 @@ agent_config = {
 
 agent_ids = ["Agent0"]#, "Agent1"]
 agents: Dict[str, Agent] = {
-    agent_id: Agent(SpatialSoftMaxModel(agent_config), name=agent_id)
+    agent_id: Agent(StridedConvModel(agent_config), name=agent_id)
     for agent_id in agent_ids
 }
 
@@ -57,8 +57,8 @@ trainer_config = {
     },
     "gamma": 0.9999,  # Discount factor
     "preserve_channels": False, #Store frames with colors
+    "load_weights_from_prefix": " spatial_softmax_2019-12-02_21-26-53",
     "load_weights_from_step": 1300,
-    "load_weights_from_prefix": "spatial_softmax_2019-12-02_21-26-53",
 
     # PPO settings
     "ppo_steps": 25,
