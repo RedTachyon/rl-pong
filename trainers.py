@@ -66,7 +66,7 @@ class PPOTrainer:
 
             # Compatibility
             "tuple_mode": False,
-            "visual": True,
+            "visual": False,
 
             # GPU
             "use_gpu": False,
