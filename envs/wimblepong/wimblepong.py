@@ -296,7 +296,7 @@ class Wimblepong(gym.core.Env):
         self._step_actions(actions)
         player1_collide, player2_collide = self._step_collisions()
         player1_reward, player2_reward, done = self._step_check_victory()
-        return player1_reward + player1_collide, player2_reward + player2_collide, done
+        return player1_reward + player1_collide*0, player2_reward + player2_collide*0, done
 
     def _step_actions(self, actions):
         # Get the opponent's action, if we're in single mode
