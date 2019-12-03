@@ -111,6 +111,53 @@ class CoordConvModel(BaseModel):
         return action_distribution, value
 
 
+class StridedConvModel(BaseModel):
+    def __init__(self, config: Dict):
+        super().__init__(config)
+
+        default_config = {
+            "input_shape": (100, 100),
+            "num_actions": 5,
+            "activation": "relu",
+        }
+
+        self.config = with_default_config(config, default_config)
+        self.activation = get_activation(self.config["activation"])
+
+        input_shape: Tuple[int, int] = self.config["input_shape"]
+
+        self.conv_layers = nn.ModuleList([nn.Conv2d(2, 32, kernel_size=8, stride=4),  # 32x24x24
+                                          nn.Dropout2d(p = 0.6, inplace=False),
+                                          nn.Conv2d(32, 64, kernel_size=4, stride=2), # 64x11x11
+                                          nn.Dropout2d(p=0.6, inplace=False),
+                                          nn.Conv2d(64, 64, kernel_size=3, stride=1), # 64x9x9
+                                          nn.Dropout2d(p=0.6, inplace=False)])
+
+        # flatten
+
+        self.hidden = nn.Linear(64*9*9, 512)
+
+        self.policy_head = nn.Linear(512, self.config["num_actions"])
+        self.value_head = nn.Linear(512, 1)
+
+    def forward(self, x: Tensor):
+
+        # noinspection PyTypeChecker
+        for layer in self.conv_layers:
+            x = layer(x)
+            x = self.activation(x)
+
+        x = x.flatten(1, -1)
+        x = self.hidden(x)
+
+        action_logits = self.policy_head(x)
+        value = self.value_head(x)
+
+        action_distribution = Categorical(logits=action_logits)
+
+        return action_distribution, value
+
+
 class SpatialSoftMaxModel(BaseModel):
     def __init__(self, config: Dict):
         super().__init__(config)
@@ -129,8 +176,6 @@ class SpatialSoftMaxModel(BaseModel):
         hidden_sizes: Tuple[int] = self.config.get("hidden_sizes")
 
         self.activation: Callable = get_activation(self.config.get("activation"))
-
-
         self.conv = nn.Conv2d(3, 3, kernel_size=3, padding=1)
 
         layer_sizes = (input_size,) + hidden_sizes

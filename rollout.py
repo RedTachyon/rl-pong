@@ -197,7 +197,10 @@ class Collector:
 
             stacked_obs = {}
             for agent_id, agent in self.agents.items():
-                stacked_obs[agent_id] = np.concatenate([obs[agent_id], agent.storage.get("last_obs")], axis=0)
+                if preserve_channels:
+                    stacked_obs[agent_id] = np.concatenate([obs[agent_id], agent.storage.get("last_obs")], axis=0)
+                else:
+                    stacked_obs[agent_id] = np.stack([obs[agent_id], agent.storage.get("last_obs")], axis=0)
 
             # breakpoint()
             action_info = {  # action, logprob

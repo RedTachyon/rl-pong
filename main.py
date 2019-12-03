@@ -3,7 +3,7 @@ import numpy as np
 import gym
 
 from rollout import Collector
-from models import MLPModel, CoordConvModel, BilinearCoordPooling, SpatialSoftMaxModel
+from models import MLPModel, CoordConvModel, BilinearCoordPooling, SpatialSoftMaxModel, StridedConvModel
 from agents import Agent
 from utils import discount_rewards_to_go, preprocess_frame
 from trainers import PPOTrainer
@@ -38,7 +38,7 @@ agent_config = {
 
 agent_ids = ["Agent0"]#, "Agent1"]
 agents: Dict[str, Agent] = {
-    agent_id: Agent(SpatialSoftMaxModel(agent_config), name=agent_id)
+    agent_id: Agent(StridedConvModel(agent_config), name=agent_id)
     for agent_id in agent_ids
 }
 
@@ -56,7 +56,7 @@ trainer_config = {
         "amsgrad": False
     },
     "gamma": 0.95,  # Discount factor
-    "preserve_channels": True, #Store frames with colors
+    "preserve_channels": False, #Store frames with colors
 
     # PPO settings
     "ppo_steps": 25,
@@ -66,7 +66,7 @@ trainer_config = {
     "entropy_coeff": 0.001,
 
     # Tensorboard settings
-    "tensorboard_name": "spatial_softmax",
+    "tensorboard_name": "strided_conv",
 
     # Compatibility
     "visual": True,
