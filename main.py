@@ -38,7 +38,7 @@ agent_config = {
 
 agent_ids = ["Agent0"]#, "Agent1"]
 agents: Dict[str, Agent] = {
-    agent_id: Agent(BilinearCoordPooling(agent_config), name=agent_id)
+    agent_id: Agent(CoordConvModel(agent_config), name=agent_id)
     for agent_id in agent_ids
 }
 
@@ -62,10 +62,10 @@ trainer_config = {
     "eps": 0.1,  # PPO clip parameter
     "target_kl": 0.01,  # KL divergence limit
     "value_loss_coeff": 0.01,
-    "entropy_coeff": 0.001,
+    "entropy_coeff": 0.05,
 
     # Tensorboard settings
-    "tensorboard_name": "simple_bilinear",
+    "tensorboard_name": "coord_conv_more_entropy",
 
     # Compatibility
     "tuple_mode": True,

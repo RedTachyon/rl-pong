@@ -78,7 +78,8 @@ class CoordConvModel(BaseModel):
 
         self.conv_layers = nn.ModuleList([nn.Conv2d(4, 32, kernel_size=8, stride=4),  # 24x24x32
                                           nn.Conv2d(32, 64, kernel_size=7, stride=3),  # 6x6x64
-                                          nn.Conv2d(64, 64, kernel_size=3, stride=1)])  # 4x4x64
+                                          nn.Conv2d(64, 64, kernel_size=3, stride=1),
+                                          nn.Conv2d(64, 64, kernel_size=1, stride=1)])  # 4x4x64
 
         _coords_i = torch.linspace(-1, 1, input_shape[0]).view(-1, 1).repeat(1, input_shape[1])
         _coords_j = torch.linspace(-1, 1, input_shape[1]).view(1, -1).repeat(input_shape[0], 1)
