@@ -52,6 +52,7 @@ class PPOTrainer:
             },
             "gamma": 0.95,  # Discount factor
             "preserve_channels": False,
+            "load_model": True,
 
             # PPO settings
             "ppo_steps": 25,
@@ -106,6 +107,11 @@ class PPOTrainer:
                     pass
         else:
             self.writer = None
+
+        if self.config["load_model"]:
+            for agent_id, agent in self.agents.items():
+                agent.load_model(self.config["load_model_from_path"])
+
 
         self.collector = Collector(agents=self.agents,
                                    env=self.env,

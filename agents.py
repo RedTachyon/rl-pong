@@ -14,8 +14,13 @@ class Agent:
     def __init__(self, model: BaseModel, name: str):
         self.model = model
         self.name = name
-
         self.storage = {}
+        
+        use_coda = torch.cuda.is_available()
+        self.device = torch.device('cuda' if use_coda else 'cpu')
+
+    def load_model(self, path):
+        self.model = torch.load(path, map_location=self.device)
 
     def compute_actions(self, obs_batch: Tensor,
                         deterministic: bool = False) -> Tuple[Tensor, Tensor]:
