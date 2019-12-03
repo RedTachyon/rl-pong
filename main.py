@@ -57,17 +57,16 @@ trainer_config = {
     },
     "gamma": 0.95,  # Discount factor
     "preserve_channels": False, #Store frames with colors
-    "load_weights_from_step": '_1300',
 
     # PPO settings
     "ppo_steps": 25,
     "eps": 0.1,  # PPO clip parameter
     "target_kl": 0.01,  # KL divergence limit
     "value_loss_coeff": 0.01,
-    "entropy_coeff": 0.01,
+    "entropy_coeff": 0.001,
 
     # Tensorboard settings
-    "tensorboard_name": "strided_conv_++entropy_--reward_bonus",
+    "tensorboard_name": "strided_conv",
 
     # Compatibility
     "visual": True,
