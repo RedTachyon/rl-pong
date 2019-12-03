@@ -111,7 +111,8 @@ class PPOTrainer:
 
         if self.config['load_weights_from_step'] > 0:
             for agent_id, agent in self.agents.items():
-                torch.load(agents[agent_id], os.path.join(str(self.path), f"{agent_id}_{self.config['load_weights_from_step']}.pt"))
+                agent.model = torch.load(os.path.join(str(self.path), f"{agent_id}_{self.config['load_weights_from_step']}.pt"),
+                                         map_location=torch.device('cuda' if self.config['use_gpu'] else 'cpu'))
 
         self.collector = Collector(agents=self.agents,
                                    env=self.env,
