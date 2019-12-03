@@ -56,7 +56,7 @@ trainer_config = {
         "weight_decay": 0,
         "amsgrad": False
     },
-    "gamma": 0.95,  # Discount factor
+    "gamma": 0.999,  # Discount factor
     "preserve_channels": True, #Store frames with colors
     "load_model": True,
     "load_model_from_path": '/home/llama/tb_logs/spatial_softmax_2019-12-02_21-26-53Agent0_1300.pt',
@@ -66,7 +66,7 @@ trainer_config = {
     "eps": 0.1,  # PPO clip parameter
     "target_kl": 0.01,  # KL divergence limit
     "value_loss_coeff": 0.01,
-    "entropy_coeff": 0.001,
+    "entropy_coeff": 0.01,
 
     # Tensorboard settings
     "tensorboard_name": "spatial_softmax",
