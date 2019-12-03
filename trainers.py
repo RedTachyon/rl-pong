@@ -65,7 +65,6 @@ class PPOTrainer:
 
             # Compatibility
             "tuple_mode": False,
-            "visual": False,
 
             # GPU
             "use_gpu": False,
@@ -225,6 +224,7 @@ class PPOTrainer:
             metrics[f"{agent_id}/episode_reward_std"] = torch.std(ep_rewards).item()
             metrics[f"{agent_id}/episodes_this_iter"] = len(ep_ids)
             metrics[f"{agent_id}/mean_entropy"] = torch.mean(entropy_batch).item()
+
             metrics[f"{agent_id}/winrate"] = (reward_batch[torch.nonzero(done_batch).view(-1)].mean().item() + 1) / 2
             
             if extra_metrics is not None:
@@ -250,8 +250,7 @@ class PPOTrainer:
             data_batch = self.collector.collect_data(num_steps=self.config["batch_size"],
                                                      finish_episode=finish_episode,
                                                      divide_rewards=divide_rewards,
-                                                     preserve_channels=self.config["preserve_channels"],
-                                                     visual=self.config["visual"])
+                                                     preserve_channels=self.config["preserve_channels"])
             data_time = timer.checkpoint()
             time_metric = {f"{agent_id}/time_data_collection": data_time for agent_id in self.agent_ids}
 

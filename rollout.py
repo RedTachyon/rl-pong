@@ -182,7 +182,7 @@ class Collector:
         if self.tuple_mode:  # Convert obs to dict
             obs = convert_obs_to_dict(obs, self.agent_ids)
 
-        obs = {key: preprocess_frame(obs_, preserve_channels, visual) for key, obs_ in obs.items()}
+        obs = {key: preprocess_frame(obs_, preserve_channels) for key, obs_ in obs.items()}
 
 
         episode = 0
@@ -224,7 +224,7 @@ class Collector:
                 reward = convert_obs_to_dict(reward, self.agent_ids)
                 done = {agent_id: done for agent_id in self.agent_ids}
 
-            next_obs = {key: preprocess_frame(obs_, preserve_channels, visual) for key, obs_ in next_obs.items()}
+            next_obs = {key: preprocess_frame(obs_, preserve_channels) for key, obs_ in next_obs.items()}
             if divide_rewards:
                 reward = {key: (rew / divide_rewards) for key, rew in reward.items()}
 
@@ -247,7 +247,7 @@ class Collector:
                 if self.tuple_mode:
                     obs = convert_obs_to_dict(obs, self.agent_ids)
 
-                obs = {key: preprocess_frame(obs_, preserve_channels, visual) for key, obs_ in obs.items()}
+                obs = {key: preprocess_frame(obs_, preserve_channels) for key, obs_ in obs.items()}
 
                 # Frame stacking
                 for agent_id, agent in self.agents.items():

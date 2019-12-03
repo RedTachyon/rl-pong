@@ -216,7 +216,7 @@ class BilinearCoordPooling(BaseModel):
 
         _coords_i = torch.linspace(-1, 1, input_shape[0]).view(-1, 1).repeat(1, input_shape[1])
         _coords_j = torch.linspace(-1, 1, input_shape[1]).view(1, -1).repeat(input_shape[0], 1)
-        self.coords = torch.stack([_coords_i, _coords_j], axis = -1)
+        self.coords = torch.stack([_coords_i, _coords_j])
 
         self.bilinear = nn.Bilinear(2, 2, 4)
         self.pool1 = nn.AvgPool2d((100, self.field_threshold))
@@ -241,8 +241,8 @@ class BilinearCoordPooling(BaseModel):
         batch_coords = torch.stack([self.coords for _ in range(batch_size)], dim=0).to(x.device.type)
 
         # transpose to [N, H, W, C]
-        #batch_coords = torch.transpose(batch_coords, -1, 1).contiguous()
-        #x = torch.transpose(x, -1, 1).contiguous()
+        batch_coords = torch.transpose(batch_coords, -1, 1).contiguous()
+        x = torch.transpose(x, -1, 1).contiguous()
 
         x = self.bilinear(x, batch_coords) # [N, 100, 100, 4]
         x = torch.transpose(x, -1, 1)
