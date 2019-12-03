@@ -1,5 +1,9 @@
 # Pong AI via multi-agent training
 
+The environment code was written by the course instructors/TAs at Aalto University. The training procedure (Collector, PPOTrainer), Tensorboard integration and most of the general classes (BaseModel, Agent) have been written by Ariel (@RedTachyon), and some of the models and the evaluation API integration have been written by Elisabeth (@LizTheElephant).
+
+Note from Ariel: this is put up primarily as a showcase repo right now. I'm currently developing a research project in a similar framework, albeit this code has been significantly simplified for the purposes of the course. Nevertheless, since most of the code I'm the most proud of is sitting on some company servers, I wanted to show this as an example of my coding style.
+
 ## Quickstart for understanding the code
 
 ### MultiAgentEnv
